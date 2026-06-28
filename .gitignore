@@ -1,0 +1,22 @@
+# Android
+*.apk
+*.aab
+*.dex
+*.class
+bin/
+gen/
+out/
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+*.log
+*.hprof
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Assets (already tracked in repo)
+# app/src/main/assets/ - keep tracked
