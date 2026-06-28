@@ -19,10 +19,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val viewModel: GameViewModel = viewModel()
-            var screen by androidx.compose.runtime.mutableStateOf(
+            var screen by remember { mutableIntStateOf(
                 if (viewModel.engine.hasSave() && !viewModel.engine.player.value.isAllocated) 2
                 else if (viewModel.engine.hasSave()) 0 else 0
-            )
+            ) }
 
             Surface(color = InkBlack, modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
                 when (screen) {
