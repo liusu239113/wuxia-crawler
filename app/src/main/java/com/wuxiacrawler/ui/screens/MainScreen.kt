@@ -69,12 +69,19 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
     BreakthroughDialog(btPending, btInfo, engine)
     LevelUpDialog(showLvlUp, upgrades, rerolls, player, engine)
 
-    // 时钟
+    // 时钟 + 定期自动存档
     LaunchedEffect(Unit) {
+        var counter = 0
         while (true) {
             delay(1000)
             val r = engine.realm.value
             if (r.isExploring && !r.isEventActive) engine.tickRealm()
+            // 每30秒自动存档一次
+            counter++
+            if (counter >= 30 && engine.player.value.isAllocated && engine.player.value.inCombat.not()) {
+                engine.saveGame()
+                counter = 0
+            }
         }
     }
 

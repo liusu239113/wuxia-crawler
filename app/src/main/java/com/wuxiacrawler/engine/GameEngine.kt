@@ -165,8 +165,8 @@ class GameEngine(private val context: Context) {
         soundManager.playSfx("confirm")
         when(Random.nextInt(4)){
             0->{generateEnemy("chest");addRealmLog("宝箱怪出现！");startCombat("battle")}
-            1->{if(_realm.value.floor==1)goldDrop() else createEquipPrint();_realm.value = _realm.value.copy(isEventActive = false)}
-            2->{goldDrop();_realm.value = _realm.value.copy(isEventActive = false)}
+            1->{if(_realm.value.floor==1)goldDrop() else createEquipPrint(); saveGame(); _realm.value = _realm.value.copy(isEventActive = false)}
+            2->{goldDrop(); saveGame(); _realm.value = _realm.value.copy(isEventActive = false)}
             3->{addRealmLog("宝箱是空的。");_realm.value = _realm.value.copy(isEventActive = false)}
         }
     }
@@ -179,7 +179,7 @@ class GameEngine(private val context: Context) {
         val (k,v) = s.entries.random()
         when(k){"hp"->p.bonusStats.hp+=v;"atk"->p.bonusStats.atk+=v;"def"->p.bonusStats.def+=v;"atkSpd"->p.bonusStats.atkSpd+=v;"vamp"->p.bonusStats.vamp+=v;"critRate"->p.bonusStats.critRate+=v;"critDmg"->p.bonusStats.critDmg+=v}
         addRealmLog("祝福获得${k}+${v}%！（祝福Lv.${p.blessing}→${p.blessing+1}）"); p.blessing++
-        calculateStats(); _player.value = p.copy()
+        calculateStats(); saveGame(); _player.value = p.copy()
     }
 
     private fun roomTransition() {
@@ -322,10 +322,10 @@ class GameEngine(private val context: Context) {
         soundManager.stopBgm(); soundManager.playSfx("combat_end"); val p=_player.value; _player.value = p.copy(inCombat = false)
         if(p.skills.contains("RAMPAGER")){p.baseStats.atk-=p.tempStats.atk.toInt();p.tempStats.atk=0f}
         if(p.skills.contains("BLADE_DANCE")){p.baseStats.atkSpd-=p.tempStats.atkSpd;p.tempStats.atkSpd=0f}
-        calculateStats(); _realm.value = _realm.value.copy(isEventActive = false)
+        calculateStats(); saveGame(); _realm.value = _realm.value.copy(isEventActive = false)
     }
 
-    fun dismissCombatResult() { _combatState.value=null; if(!_realm.value.isPaused) _realm.value = _realm.value.copy(isExploring = true) }
+    fun dismissCombatResult() { _combatState.value=null; if(!_realm.value.isPaused) _realm.value = _realm.value.copy(isExploring = true); saveGame() }
 
     private fun lvlupPopup() {
         soundManager.playSfx("level_up"); val p=_player.value
