@@ -152,11 +152,11 @@ class GameEngine(private val context: Context) {
         when {
             last.contains("迎战")&&idx==0->{ startCombat("battle"); addRealmLog("迎战！") }
             last.contains("逃跑")&&idx==1->{ if(Random.nextBoolean()){addRealmLog("成功逃脱！");_player.value = _player.value.copy(inCombat = false);r.isEventActive=false} else {addRealmLog("逃跑失败！");startCombat("battle")} }
-            last.contains("打开宝箱")&&idx==0->chestEvent()
+            last.contains("打开宝箱")&&idx==0->{ chestEvent(); return }
             last.contains("供奉")&&idx==0->{ val p=_player.value.copy(); if(p.blessing<1)p.blessing=1; val cost=(p.blessing*(500.0*(p.blessing*0.5))+750).toLong(); if(p.gold<cost){addRealmLog("银两不足。");soundManager.playSfx("denied")} else {p.gold-=cost;statBlessing();soundManager.playSfx("confirm"); _player.value = p}; r.isEventActive=false }
             last.contains("献祭")&&idx==0->{ val clvl=((r.enemyScaling-1f)*10).toInt(); val cost=(clvl*(10000.0*(clvl*0.5))+5000).toLong(); if(_player.value.gold<cost){addRealmLog("银两不足。");soundManager.playSfx("denied")} else { _player.value = _player.value.copy(gold = _player.value.gold - cost); r.enemyScaling+=0.1f; addRealmLog("魔物变强，战利品品质提升。（魔染Lv.${clvl}→${clvl+1}）");soundManager.playSfx("buff")}; r.isEventActive=false }
-            last.contains("进入")&&idx==0->{ if(last.contains("至尊")||last.contains("绝世强者"))specialBossBattle() else if(r.room>=r.roomsPerFloor)guardianBattle() else roomTransition() }
-            else->ignoreEvent()
+            last.contains("进入")&&idx==0->{ if(last.contains("至尊")||last.contains("绝世强者"))specialBossBattle() else if(r.room>=r.roomsPerFloor)guardianBattle() else roomTransition(); return }
+            else->{ ignoreEvent(); r.isEventActive = false }
         }
         _realm.value = r
     }
@@ -183,17 +183,15 @@ class GameEngine(private val context: Context) {
     }
 
     private fun roomTransition() {
-        val r = _realm.value.copy()
         when(Random.nextInt(3)){
-            0->{incrementRoom();generateEnemy("door");addRealmLog("秘境假门！");startCombat("battle")}
-            1->{incrementRoom();addRealmLog("进入新房间，发现宝箱！",listOf("打开宝箱","无视"));r.isEventActive=true}
-            else->{r.isEventActive=false;incrementRoom();addRealmLog("进入了下一个房间。")}
+            0->{ incrementRoom(); generateEnemy("door"); addRealmLog("秘境假门！"); startCombat("battle") }
+            1->{ incrementRoom(); addRealmLog("进入新房间，发现宝箱！",listOf("打开宝箱","无视")); _realm.value = _realm.value.copy(isEventActive = true) }
+            else->{ incrementRoom(); addRealmLog("进入了下一个房间。"); _realm.value = _realm.value.copy(isEventActive = false) }
         }
-        _realm.value = r
     }
 
-    private fun guardianBattle() { val r = _realm.value.copy(); incrementRoom(); generateEnemy("guardian"); startCombat("guardian"); addCombatLog("秘境护法【${_combatState.value?.enemyName}】挡住了去路！"); addRealmLog("进入了下一层。"); _realm.value = r }
-    private fun specialBossBattle() { val r = _realm.value.copy(); generateEnemy("sboss"); startCombat("boss"); addCombatLog("武林至尊【${_combatState.value?.enemyName}】苏醒！"); addRealmLog("武林至尊【${_combatState.value?.enemyName}】苏醒！"); _realm.value = r }
+    private fun guardianBattle() { incrementRoom(); generateEnemy("guardian"); startCombat("guardian"); addCombatLog("秘境护法【${_combatState.value?.enemyName}】挡住了去路！"); addRealmLog("进入了下一层。") }
+    private fun specialBossBattle() { generateEnemy("sboss"); startCombat("boss"); addCombatLog("武林至尊【${_combatState.value?.enemyName}】苏醒！"); addRealmLog("武林至尊【${_combatState.value?.enemyName}】苏醒！") }
     private fun ignoreEvent() { soundManager.playSfx("confirm"); addRealmLog("选择无视，继续前行。") }
     private fun incrementRoom() { val r = _realm.value.copy(); r.room++; r.actionCounter=0; if(r.room>r.roomsPerFloor){r.room=1;r.floor++}; _realm.value = r }
 
@@ -304,7 +302,7 @@ class GameEngine(private val context: Context) {
             if(nr!=null&&p.lvl>=nr.level*10+10&&p.kills>=nr.level*5){_realmBreakthroughPending.value=true;_realmBreakthroughInfo.value=Pair(cr.displayName,nr.displayName)}
             if(p.exp.lvlGained>0){_showLevelUp.value=true;lvlupPopup()}
         } else { cs.enemyHpPercent=(cs.enemyHp.toFloat()/cs.enemyHpMax*100f) }
-        _player.value = p.copy(); _combatState.value=cs.copy()
+        _player.value = _player.value.copy(); _combatState.value=cs.copy()
     }
 
     private fun playerExpGain(expGain:Int) {
