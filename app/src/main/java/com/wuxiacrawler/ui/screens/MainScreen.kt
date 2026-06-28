@@ -301,7 +301,7 @@ private fun InventoryTab(engine: com.wuxiacrawler.engine.GameEngine, player: com
             TextButton(onClick = { engine.unequipAll() }) { Text("全部卸下", color = HpRed, fontSize = 11.sp) }
         }
 
-        HorizontalDivider(color = BorderWhite, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+        Box(Modifier.fillMaxWidth().height(0.5.dp).padding(vertical = 4.dp).background(BorderWhite))
 
         Text("🎒 背包 (${inv.size})", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         if (inv.isEmpty()) {
