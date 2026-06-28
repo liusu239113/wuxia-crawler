@@ -211,13 +211,15 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
         }
 
         // ========== COMBAT OVERLAY ==========
-        if (cs != null && !cs.enemyDead && !cs.playerDead) {
-            CombatOverlay(cs, cLog, sprite, eFlinch, pFlinch, dmgNums, engine)
+        val combatCs = cs
+        if (combatCs != null && !combatCs.enemyDead && !combatCs.playerDead) {
+            CombatOverlay(combatCs, cLog, sprite, eFlinch, pFlinch, dmgNums, engine)
         }
 
         // ========== COMBAT RESULT OVERLAY ==========
-        if (cs?.enemyDead == true || cs?.playerDead == true) {
-            CombatResultOverlay(cs!!, engine, onDeath)
+        val combatRes = cs
+        if (combatRes != null && (combatRes.enemyDead || combatRes.playerDead)) {
+            CombatResultOverlay(combatRes, engine, onDeath)
         }
 
         // ========== INVENTORY MODAL ==========
