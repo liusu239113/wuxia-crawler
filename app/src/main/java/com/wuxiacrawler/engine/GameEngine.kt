@@ -116,12 +116,15 @@ class GameEngine(private val context: Context) {
     fun pauseExploring() { val r=_realm.value; r.isPaused=true; r.isExploring=false; _realm.value=r.copy(); soundManager.stopBgm(); soundManager.playSfx("pause") }
 
     fun tickRealm() {
-        val r = _realm.value; if (!r.isExploring||r.isEventActive) return
+        val r = _realm.value
+        if (!r.isExploring || r.isEventActive) return
         r.actionCounter++; r.runTime++
         val types = mutableListOf("blessing","curse","treasure","enemy","enemy","nothing","nothing","nothing","nothing","monarch")
-        if (r.actionCounter>2&&r.actionCounter<6) types.add("nextroom")
-        else if (r.actionCounter>5) { processEvent("nextroom"); return }
+        if (r.actionCounter > 2 && r.actionCounter < 6) types.add("nextroom")
+        else if (r.actionCounter > 5) { processEvent("nextroom"); _realm.value = r.copy(); return }
         processEvent(types.random())
+        // 确保每次 tick 都发射 realm 状态（nothing事件后也不会丢失 actionCounter/runTime）
+        _realm.value = r.copy()
     }
 
     private val spriteMap = mapOf("山贼" to "goblin","山贼弓手" to "goblin_archer","山贼刺客" to "goblin_rogue","狼" to "wolf","黑狼" to "wolf_black","冰原狼" to "wolf_winter","魔液兽" to "slime","石魔像" to "slime","圣光天使" to "slime_angel","金甲剑奴" to "slime_knight","剑奴" to "slime_crusader","兽人剑师" to "orc_swordsmaster","兽人斧卫" to "orc_axe","兽人射手" to "orc_archer","蜘蛛" to "spider","赤蜘蛛" to "spider_red","绿毒蜘蛛" to "spider_green","骷髅射手" to "skeleton_archer","骷髅剑师" to "skeleton_swordsmaster","骷髅骑士" to "skeleton_knight","骷髅武士" to "skeleton_warrior","骷髅刺客" to "skeleton_samurai","骷髅海盗" to "skeleton_pirate","宝箱怪" to "mimic","秘境假门" to "mimic_door","霸天·妖兽统领" to "goblin_boss","骨皇·骷髅君主" to "skeleton_boss","炽热蜘蛛王" to "spider_fire","不死·骸骨帝王" to "berthelot","魔液君主" to "slime_boss","星灵·天蟹圣者" to "zodiac_cancer","圣光·白昼泰坦" to "alfadriel","龙骑·泰玛特" to "tiamat","无名·堕落之王" to "fallen_king","星灵·白羊圣者" to "zodiac_aries","蚁后·莉拉德" to "ant_queen","发条·机械蜘蛛" to "spider_boss","致命·弑神狼" to "wolf_boss","冥犬·赫尔猎犬" to "hellhound","三头·刻耳柏洛斯" to "cerberus_ptolemaios","灭世·比希摩斯" to "behemoth","龙帝·煞拉洛斯" to "zalaras","死灵·乌利奥特" to "skeleton_dragon","熔岩·伊弗利特" to "firelord","冰霜·希瓦" to "icemaiden","死神·萨纳托斯" to "thanatos","暗影·天使收割者" to "da-reaper","蛛龙·奈兹彻" to "spider_dragon","血煞·狂化妖" to "bm-feral")
@@ -131,18 +134,16 @@ class GameEngine(private val context: Context) {
         when(event) {
             "nextroom"->{ if(r.room>=r.roomsPerFloor) addRealmLog("找到了通往下一层的秘境之门！护法守在门前。",listOf("进入","无视")) else addRealmLog("前方有一扇秘境之门。",listOf("进入","无视")) }
             "treasure"->addRealmLog("发现一间藏宝室，里面有一个宝箱。",listOf("打开宝箱","无视"))
-            "nothing"->{ nothingEvent(); return }
+            "nothing"->{ nothingEvent(); r.isEventActive = false }
             "enemy"->{ generateEnemy(); addRealmLog("遭遇【${_combatState.value?.enemyName}】！",listOf("迎战","逃跑")); _player.value = _player.value.copy(inCombat = true) }
-            "blessing"->{ if(Random.nextInt(2)==1){ val p=_player.value; if(p.blessing<1)p.blessing=1; val cost=(p.blessing*(500.0*(p.blessing*0.5))+750).toLong(); addRealmLog("发现悟道碑文！供奉${cost}两白银可获得祝福。（祝福Lv.${p.blessing}）",listOf("供奉","无视")) } else { nothingEvent(); return } }
-            "curse"->{ if(Random.nextInt(3)==1){ val clvl=((r.enemyScaling-1f)*10).toInt(); val cost=(clvl*(10000.0*(clvl*0.5))+5000).toLong(); addRealmLog("发现魔道祭坛！献祭${cost}两白银可强化魔物。（魔染Lv.${clvl}）",listOf("献祭","无视")) } else { nothingEvent(); return } }
-            "monarch"->{ if(Random.nextInt(7)==1) addRealmLog("前方传来恐怖的气息……似乎有绝世强者在此沉睡。",listOf("进入","避开")) else { nothingEvent(); return } }
+            "blessing"->{ if(Random.nextInt(2)==1){ val p=_player.value; if(p.blessing<1)p.blessing=1; val cost=(p.blessing*(500.0*(p.blessing*0.5))+750).toLong(); addRealmLog("发现悟道碑文！供奉${cost}两白银可获得祝福。（祝福Lv.${p.blessing}）",listOf("供奉","无视")) } else { nothingEvent(); r.isEventActive = false } }
+            "curse"->{ if(Random.nextInt(3)==1){ val clvl=((r.enemyScaling-1f)*10).toInt(); val cost=(clvl*(10000.0*(clvl*0.5))+5000).toLong(); addRealmLog("发现魔道祭坛！献祭${cost}两白银可强化魔物。（魔染Lv.${clvl}）",listOf("献祭","无视")) } else { nothingEvent(); r.isEventActive = false } }
+            "monarch"->{ if(Random.nextInt(7)==1) addRealmLog("前方传来恐怖的气息……似乎有绝世强者在此沉睡。",listOf("进入","避开")) else { nothingEvent(); r.isEventActive = false } }
         }
-        _realm.value=r.copy()
     }
 
     private fun nothingEvent() {
         addRealmLog(listOf("四处探索，空无一物……","发现一个空的宝箱。","发现一具妖兽尸骸。","发现一具枯骨。","这片区域早已被人搜刮干净。").random())
-        _realm.value = _realm.value.copy(isEventActive = false)
     }
 
     fun chooseOption(idx: Int) {
