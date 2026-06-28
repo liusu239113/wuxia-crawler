@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wuxiacrawler.data.CombatState
 import com.wuxiacrawler.data.EquipmentItem
+import com.wuxiacrawler.config.EquipmentRarity
 import com.wuxiacrawler.ui.theme.*
 import com.wuxiacrawler.viewmodel.GameViewModel
 import kotlinx.coroutines.delay
@@ -74,7 +75,7 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
                             Text("${opt.stat} +${"%.1f".format(opt.value)}%")
                         }
                     }
-                    if (rerolls > 0) TextButton(onClick = { engine.rerollUpgrades() }) { Text("重骰（$rerolls次）", color = GoldAccent) }
+                    if (rerolls > 0) TextButton(onClick = { engine.rerollUpgrades() }) { Text("重骰（${rerolls}次）", color = GoldAccent) }
                 }
             },
             confirmButton = {},

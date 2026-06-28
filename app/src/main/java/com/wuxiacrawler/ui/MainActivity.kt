@@ -19,7 +19,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val viewModel: GameViewModel = viewModel()
-            var screen by androidx.compose.runtime.mutableIntStateOf(
+            var screen by androidx.compose.runtime.mutableStateOf(
                 if (viewModel.engine.hasSave() && !viewModel.engine.player.value.isAllocated) 2
                 else if (viewModel.engine.hasSave()) 0 else 0
             )
