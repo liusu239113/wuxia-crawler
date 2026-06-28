@@ -98,9 +98,15 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
         )
     }
 
-    // 秘境探索时钟
-    LaunchedEffect(realm.isExploring, realm.isEventActive) {
-        while (realm.isExploring && !realm.isEventActive) { delay(1000); engine.tickRealm() }
+    // 秘境探索时钟 — 直接用 StateFlow 轮询，避免 by 委托在协程闭包中读旧值
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            val r = engine.realm.value
+            if (r.isExploring && !r.isEventActive) {
+                engine.tickRealm()
+            }
+        }
     }
 
     // 战斗时钟

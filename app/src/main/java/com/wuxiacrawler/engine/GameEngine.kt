@@ -64,7 +64,7 @@ class GameEngine(private val context: Context) {
 
     // ===== Character Creation =====
     fun createCharacter(name: String, hpAlloc: Int, atkAlloc: Int, defAlloc: Int, spdAlloc: Int, skill: MartialSkill) {
-        val p = _player.value
+        val p = _player.value.copy()
         p.name = name
         p.baseStats = PlayerStats(hp=50*hpAlloc, hpMax=50*hpAlloc, atk=10*atkAlloc, def=10*defAlloc, atkSpd=0.4f+0.02f*spdAlloc)
         p.skills = skill.name; p.isAllocated = true
@@ -112,25 +112,25 @@ class GameEngine(private val context: Context) {
     }
 
     // ===== Dungeon =====
-    fun startExploring() { val r=_realm.value; r.isPaused=false; r.isExploring=true; _realm.value=r.copy(); soundManager.playBgm(context,"dungeon"); soundManager.playSfx("unpause") }
-    fun pauseExploring() { val r=_realm.value; r.isPaused=true; r.isExploring=false; _realm.value=r.copy(); soundManager.stopBgm(); soundManager.playSfx("pause") }
+    fun startExploring() { val r = _realm.value.copy(isPaused = false, isExploring = true); _realm.value = r; soundManager.playBgm(context,"dungeon"); soundManager.playSfx("unpause") }
+    fun pauseExploring() { val r = _realm.value.copy(isPaused = true, isExploring = false); _realm.value = r; soundManager.stopBgm(); soundManager.playSfx("pause") }
 
     fun tickRealm() {
-        val r = _realm.value
-        if (!r.isExploring || r.isEventActive) return
+        val current = _realm.value
+        if (!current.isExploring || current.isEventActive) return
+        val r = current.copy()
         r.actionCounter++; r.runTime++
         val types = mutableListOf("blessing","curse","treasure","enemy","enemy","nothing","nothing","nothing","nothing","monarch")
         if (r.actionCounter > 2 && r.actionCounter < 6) types.add("nextroom")
-        else if (r.actionCounter > 5) { processEvent("nextroom"); _realm.value = r.copy(); return }
-        processEvent(types.random())
-        // 确保每次 tick 都发射 realm 状态（nothing事件后也不会丢失 actionCounter/runTime）
-        _realm.value = r.copy()
+        else if (r.actionCounter > 5) { processEvent(r, "nextroom"); _realm.value = r; return }
+        processEvent(r, types.random())
+        _realm.value = r
     }
 
     private val spriteMap = mapOf("山贼" to "goblin","山贼弓手" to "goblin_archer","山贼刺客" to "goblin_rogue","狼" to "wolf","黑狼" to "wolf_black","冰原狼" to "wolf_winter","魔液兽" to "slime","石魔像" to "slime","圣光天使" to "slime_angel","金甲剑奴" to "slime_knight","剑奴" to "slime_crusader","兽人剑师" to "orc_swordsmaster","兽人斧卫" to "orc_axe","兽人射手" to "orc_archer","蜘蛛" to "spider","赤蜘蛛" to "spider_red","绿毒蜘蛛" to "spider_green","骷髅射手" to "skeleton_archer","骷髅剑师" to "skeleton_swordsmaster","骷髅骑士" to "skeleton_knight","骷髅武士" to "skeleton_warrior","骷髅刺客" to "skeleton_samurai","骷髅海盗" to "skeleton_pirate","宝箱怪" to "mimic","秘境假门" to "mimic_door","霸天·妖兽统领" to "goblin_boss","骨皇·骷髅君主" to "skeleton_boss","炽热蜘蛛王" to "spider_fire","不死·骸骨帝王" to "berthelot","魔液君主" to "slime_boss","星灵·天蟹圣者" to "zodiac_cancer","圣光·白昼泰坦" to "alfadriel","龙骑·泰玛特" to "tiamat","无名·堕落之王" to "fallen_king","星灵·白羊圣者" to "zodiac_aries","蚁后·莉拉德" to "ant_queen","发条·机械蜘蛛" to "spider_boss","致命·弑神狼" to "wolf_boss","冥犬·赫尔猎犬" to "hellhound","三头·刻耳柏洛斯" to "cerberus_ptolemaios","灭世·比希摩斯" to "behemoth","龙帝·煞拉洛斯" to "zalaras","死灵·乌利奥特" to "skeleton_dragon","熔岩·伊弗利特" to "firelord","冰霜·希瓦" to "icemaiden","死神·萨纳托斯" to "thanatos","暗影·天使收割者" to "da-reaper","蛛龙·奈兹彻" to "spider_dragon","血煞·狂化妖" to "bm-feral")
 
-    fun processEvent(event: String) {
-        val r = _realm.value; r.isEventActive = true
+    fun processEvent(r: RealmState, event: String) {
+        r.isEventActive = true
         when(event) {
             "nextroom"->{ if(r.room>=r.roomsPerFloor) addRealmLog("找到了通往下一层的秘境之门！护法守在门前。",listOf("进入","无视")) else addRealmLog("前方有一扇秘境之门。",listOf("进入","无视")) }
             "treasure"->addRealmLog("发现一间藏宝室，里面有一个宝箱。",listOf("打开宝箱","无视"))
@@ -147,17 +147,18 @@ class GameEngine(private val context: Context) {
     }
 
     fun chooseOption(idx: Int) {
-        val r=_realm.value; val last=_realmLog.value.lastOrNull()?:return
+        val current = _realm.value; val r = current.copy()
+        val last = _realmLog.value.lastOrNull() ?: return
         when {
             last.contains("迎战")&&idx==0->{ startCombat("battle"); addRealmLog("迎战！") }
             last.contains("逃跑")&&idx==1->{ if(Random.nextBoolean()){addRealmLog("成功逃脱！");_player.value = _player.value.copy(inCombat = false);r.isEventActive=false} else {addRealmLog("逃跑失败！");startCombat("battle")} }
             last.contains("打开宝箱")&&idx==0->chestEvent()
-            last.contains("供奉")&&idx==0->{ val p=_player.value; if(p.blessing<1)p.blessing=1; val cost=(p.blessing*(500.0*(p.blessing*0.5))+750).toLong(); if(p.gold<cost){addRealmLog("银两不足。");soundManager.playSfx("denied")} else {p.gold-=cost;statBlessing();soundManager.playSfx("confirm")}; r.isEventActive=false }
-            last.contains("献祭")&&idx==0->{ val clvl=((r.enemyScaling-1f)*10).toInt(); val cost=(clvl*(10000.0*(clvl*0.5))+5000).toLong(); if(_player.value.gold<cost){addRealmLog("银两不足。");soundManager.playSfx("denied")} else { val cplayer=_player.value; cplayer.gold-=cost; _player.value=cplayer.copy(); r.enemyScaling+=0.1f; addRealmLog("魔物变强，战利品品质提升。（魔染Lv.${clvl}→${clvl+1}）");soundManager.playSfx("buff")}; r.isEventActive=false }
+            last.contains("供奉")&&idx==0->{ val p=_player.value.copy(); if(p.blessing<1)p.blessing=1; val cost=(p.blessing*(500.0*(p.blessing*0.5))+750).toLong(); if(p.gold<cost){addRealmLog("银两不足。");soundManager.playSfx("denied")} else {p.gold-=cost;statBlessing();soundManager.playSfx("confirm"); _player.value = p}; r.isEventActive=false }
+            last.contains("献祭")&&idx==0->{ val clvl=((r.enemyScaling-1f)*10).toInt(); val cost=(clvl*(10000.0*(clvl*0.5))+5000).toLong(); if(_player.value.gold<cost){addRealmLog("银两不足。");soundManager.playSfx("denied")} else { _player.value = _player.value.copy(gold = _player.value.gold - cost); r.enemyScaling+=0.1f; addRealmLog("魔物变强，战利品品质提升。（魔染Lv.${clvl}→${clvl+1}）");soundManager.playSfx("buff")}; r.isEventActive=false }
             last.contains("进入")&&idx==0->{ if(last.contains("至尊")||last.contains("绝世强者"))specialBossBattle() else if(r.room>=r.roomsPerFloor)guardianBattle() else roomTransition() }
             else->ignoreEvent()
         }
-        _realm.value=r.copy()
+        _realm.value = r
     }
 
     private fun chestEvent() {
@@ -173,7 +174,7 @@ class GameEngine(private val context: Context) {
     fun goldDrop() { soundManager.playSfx("sell"); val amt=Random.nextInt(50,500)*_realm.value.floor; _player.value = _player.value.copy(gold = _player.value.gold + amt); addRealmLog("获得${amt}两白银。") }
 
     private fun statBlessing() {
-        soundManager.playSfx("buff"); val p=_player.value; if(p.blessing<1)p.blessing=1
+        soundManager.playSfx("buff"); val p=_player.value.copy(); if(p.blessing<1)p.blessing=1
         val s = mapOf("hp" to 10f,"atk" to 8f,"def" to 8f,"atkSpd" to 3f,"vamp" to 0.5f,"critRate" to 1f,"critDmg" to 6f)
         val (k,v) = s.entries.random()
         when(k){"hp"->p.bonusStats.hp+=v;"atk"->p.bonusStats.atk+=v;"def"->p.bonusStats.def+=v;"atkSpd"->p.bonusStats.atkSpd+=v;"vamp"->p.bonusStats.vamp+=v;"critRate"->p.bonusStats.critRate+=v;"critDmg"->p.bonusStats.critDmg+=v}
@@ -182,18 +183,19 @@ class GameEngine(private val context: Context) {
     }
 
     private fun roomTransition() {
-        val r=_realm.value
+        val r = _realm.value.copy()
         when(Random.nextInt(3)){
             0->{incrementRoom();generateEnemy("door");addRealmLog("秘境假门！");startCombat("battle")}
             1->{incrementRoom();addRealmLog("进入新房间，发现宝箱！",listOf("打开宝箱","无视"));r.isEventActive=true}
             else->{r.isEventActive=false;incrementRoom();addRealmLog("进入了下一个房间。")}
         }
+        _realm.value = r
     }
 
-    private fun guardianBattle() { incrementRoom(); generateEnemy("guardian"); startCombat("guardian"); addCombatLog("秘境护法【${_combatState.value?.enemyName}】挡住了去路！"); addRealmLog("进入了下一层。") }
-    private fun specialBossBattle() { generateEnemy("sboss"); startCombat("boss"); addCombatLog("武林至尊【${_combatState.value?.enemyName}】苏醒！"); addRealmLog("武林至尊【${_combatState.value?.enemyName}】苏醒！") }
-    private fun ignoreEvent() { soundManager.playSfx("confirm"); _realm.value = _realm.value.copy(isEventActive = false); addRealmLog("选择无视，继续前行。") }
-    private fun incrementRoom() { val r=_realm.value; r.room++; r.actionCounter=0; if(r.room>r.roomsPerFloor){r.room=1;r.floor++}; _realm.value = r.copy() }
+    private fun guardianBattle() { val r = _realm.value.copy(); incrementRoom(); generateEnemy("guardian"); startCombat("guardian"); addCombatLog("秘境护法【${_combatState.value?.enemyName}】挡住了去路！"); addRealmLog("进入了下一层。"); _realm.value = r }
+    private fun specialBossBattle() { val r = _realm.value.copy(); generateEnemy("sboss"); startCombat("boss"); addCombatLog("武林至尊【${_combatState.value?.enemyName}】苏醒！"); addRealmLog("武林至尊【${_combatState.value?.enemyName}】苏醒！"); _realm.value = r }
+    private fun ignoreEvent() { soundManager.playSfx("confirm"); addRealmLog("选择无视，继续前行。") }
+    private fun incrementRoom() { val r = _realm.value.copy(); r.room++; r.actionCounter=0; if(r.room>r.roomsPerFloor){r.room=1;r.floor++}; _realm.value = r }
 
     // ===== Enemy Generation =====
     fun generateEnemy(condition: String = "") {
