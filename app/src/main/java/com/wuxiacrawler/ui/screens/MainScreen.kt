@@ -133,9 +133,12 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
                     Text("Lv.${player.lvl} | 白银:${player.gold} | 修为:${player.exp.expCurr}/${player.exp.expMax}", color = TextGray, fontSize = 11.sp)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (muted) "🔇" else "🔊", color = TextWhite, fontSize = 14.sp, modifier = Modifier.clickable { engine.soundManager.toggleMute() })
-                    Spacer(Modifier.width(8.dp))
-                    Text("☰", color = TextWhite, fontSize = 18.sp, modifier = Modifier.clickable { invOpen = true })
+                    Box(Modifier.size(44.dp).clickable { engine.soundManager.toggleMute() }, contentAlignment = Alignment.Center) {
+                        Text(if (muted) "🔇" else "🔊", color = TextWhite, fontSize = 14.sp)
+                    }
+                    Box(Modifier.size(44.dp).clickable { invOpen = true }, contentAlignment = Alignment.Center) {
+                        Text("☰", color = TextWhite, fontSize = 22.sp)
+                    }
                 }
             }
 
@@ -336,10 +339,11 @@ private fun CombatResultOverlay(cs: CombatState, engine: com.wuxiacrawler.engine
 // ===== INVENTORY MODAL =====
 @Composable
 private fun InventoryModal(engine: com.wuxiacrawler.engine.GameEngine, player: com.wuxiacrawler.data.PlayerEntity, onClose: () -> Unit) {
-    val eq = remember(player.equipped) { engine.parseEquipped() }
-    val inv = remember(player.inventory) { engine.parseInventory() }
     var sellRarity by remember { mutableStateOf("全部") }
     var expanded by remember { mutableStateOf(false) }
+    // 直接每次重组时读最新值，不用 remember 缓存（避免 JSON 字符串 key 不同步）
+    val eq = engine.parseEquipped()
+    val inv = engine.parseInventory()
 
     Box(Modifier.fillMaxSize().background(BgDark.copy(alpha = 0.95f))) {
         Column(Modifier.fillMaxSize().padding(8.dp)) {
