@@ -10,11 +10,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.wuxiacrawler.ui.screens.CreationScreen
 import com.wuxiacrawler.ui.screens.MainScreen
 import com.wuxiacrawler.ui.screens.TitleScreen
-import com.wuxiacrawler.ui.theme.InkBlack
 import com.wuxiacrawler.viewmodel.GameViewModel
 
 class MainActivity : ComponentActivity() {
@@ -28,7 +29,7 @@ class MainActivity : ComponentActivity() {
                 else if (viewModel.engine.hasSave()) 0 else 0
             ) }
 
-            Surface(color = InkBlack, modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
+            Surface(color = Color(0xFF0D0D0D), modifier = Modifier.fillMaxSize()) {
                 when (screen) {
                     0 -> TitleScreen(
                         viewModel = viewModel,
