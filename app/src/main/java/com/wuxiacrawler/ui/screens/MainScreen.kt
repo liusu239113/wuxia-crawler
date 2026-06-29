@@ -85,13 +85,30 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
         }
     }
 
-    LaunchedEffect(cs) {
+    LaunchedEffect(cs?.combatId) {
         val c = cs ?: return@LaunchedEffect
         if (c.enemyDead || c.playerDead) return@LaunchedEffect
+        val combatId = c.combatId
         val pInt = (1000f / c.playerAtkSpd).toLong().coerceAtLeast(400)
         val eInt = (1000f / c.enemyAtkSpd).toLong().coerceAtLeast(400)
-        launch { while (engine.combatState.value?.enemyDead == false && engine.combatState.value?.playerDead == false) { delay(pInt); if (!engine.playerAttack()) break } }
-        launch { while (engine.combatState.value?.enemyDead == false && engine.combatState.value?.playerDead == false) { delay(eInt); if (!engine.enemyAttack()) break } }
+        launch {
+            while (engine.combatState.value?.combatId == combatId &&
+                engine.combatState.value?.enemyDead == false &&
+                engine.combatState.value?.playerDead == false
+            ) {
+                delay(pInt)
+                if (engine.combatState.value?.combatId != combatId || !engine.playerAttack()) break
+            }
+        }
+        launch {
+            while (engine.combatState.value?.combatId == combatId &&
+                engine.combatState.value?.enemyDead == false &&
+                engine.combatState.value?.playerDead == false
+            ) {
+                delay(eInt)
+                if (engine.combatState.value?.combatId != combatId || !engine.enemyAttack()) break
+            }
+        }
     }
 
     LaunchedEffect(eFlinch) { if (eFlinch) { delay(150); engine._enemyFlinch.value = false } }
@@ -454,13 +471,13 @@ private fun SettingsTab(engine: com.wuxiacrawler.engine.GameEngine, player: com.
         Spacer(Modifier.height(12.dp))
 
         SettingButton("🔊 音效", if (muted) "已关闭" else "已开启") { engine.soundManager.toggleMute() }
-        SettingButton("💾 保存进度", "手动存档") { engine.saveGame(); engine.soundManager.playSfx("confirm") }
+        SettingButton("💾 保存进度", "手动存档") { engine.saveGame(); engine.soundManager.playSfx("wood_confirm") }
         SettingButton("🗑 删除存档", "危险操作", isDanger = true) { engine.deleteSave(); onReturnTitle() }
         SettingButton("🚪 返回标题", "回到主菜单") { onReturnTitle() }
 
         Spacer(Modifier.height(20.dp))
         Text("武林秘境 v1.0", color = TextGray, fontSize = 11.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-        Text("移植自 Dungeon Crawler RPG", color = TextGray, fontSize = 10.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Text("武侠放置秘境冒险", color = TextGray, fontSize = 10.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
     }
 }
 

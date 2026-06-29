@@ -65,6 +65,7 @@ data class EquipmentItem(
 )
 
 data class CombatState(
+    var combatId: Int = 0,
     var enemyName: String = "",
     var enemyLvl: Int = 1,
     var enemyArchetype: String = "",

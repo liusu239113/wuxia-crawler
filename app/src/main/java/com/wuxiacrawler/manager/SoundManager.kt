@@ -10,9 +10,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class SoundManager(context: Context) {
+    private val appContext = context.applicationContext
     private val soundPool: SoundPool
     private val sfxMap = mutableMapOf<String, Int>()
     private var bgmPlayer: MediaPlayer? = null
+    private var currentBgmType: String? = null
+    private var currentLoop: Boolean = true
     private var isMuted = MutableStateFlow(false)
 
     val muted: StateFlow<Boolean> = isMuted.asStateFlow()
@@ -24,18 +27,28 @@ class SoundManager(context: Context) {
             .build()
         soundPool = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attrs).build()
 
-        // 加载所有SFX
-        listOf(
-            "sfx/attack.wav", "sfx/buff.wav", "sfx/combat_end.wav",
-            "sfx/confirm.wav", "sfx/decline.wav", "sfx/denied.wav",
-            "sfx/encounter.wav", "sfx/equip.wav", "sfx/hover.wav",
-            "sfx/item_use.wav", "sfx/level_up.wav", "sfx/pause.wav",
-            "sfx/sell.wav", "sfx/unequip.wav", "sfx/unpause.wav"
-        ).forEach { path ->
+        val sfxFiles = mapOf(
+            "sword_slash" to "sfx/sword_slash.ogg",
+            "qi_flow" to "sfx/qi_flow.ogg",
+            "victory_chime" to "sfx/victory_chime.ogg",
+            "wood_confirm" to "sfx/wood_confirm.ogg",
+            "decline" to "sfx/decline.wav",
+            "blocked" to "sfx/blocked.ogg",
+            "enemy_appears" to "sfx/enemy_appears.ogg",
+            "equip_blade" to "sfx/equip_blade.ogg",
+            "hover" to "sfx/hover.wav",
+            "scroll_open" to "sfx/scroll_open.ogg",
+            "realm_breakthrough" to "sfx/realm_breakthrough.ogg",
+            "bell_pause" to "sfx/bell_pause.ogg",
+            "coin_pouch" to "sfx/coin_pouch.ogg",
+            "sheath_blade" to "sfx/sheath_blade.ogg",
+            "gong_start" to "sfx/gong_start.ogg"
+        )
+
+        sfxFiles.forEach { (name, path) ->
             try {
-                val afd: AssetFileDescriptor = context.assets.openFd(path)
-                val id = soundPool.load(afd, 1)
-                sfxMap[path.substringAfterLast("/").substringBefore(".")] = id
+                val afd: AssetFileDescriptor = appContext.assets.openFd(path)
+                sfxMap[name] = soundPool.load(afd, 1)
             } catch (_: Exception) {}
         }
     }
@@ -46,13 +59,20 @@ class SoundManager(context: Context) {
     }
 
     fun playBgm(context: Context, type: String, loop: Boolean = true) {
+        currentBgmType = type
+        currentLoop = loop
         if (isMuted.value) return
-        stopBgm()
+        stopBgm(keepCurrent = true)
         val path = when (type) {
-            "dungeon" -> "bgm/dungeon.mp3"
-            "battle" -> "bgm/battle_main.mp3"
-            "guardian" -> "bgm/battle_guardian.mp3"
-            "boss" -> "bgm/battle_boss.mp3"
+            "jianghu", "dungeon" -> "bgm/jianghu_secret_realm.ogg"
+            "duel", "duel_balanced", "battle" -> "bgm/battle_balanced_sword_rain.ogg"
+            "duel_offensive" -> "bgm/battle_offensive_iron_mountain.ogg"
+            "duel_defensive" -> "bgm/battle_defensive_golden_bell.ogg"
+            "duel_quick" -> "bgm/battle_quick_shadow_step.ogg"
+            "duel_lethal" -> "bgm/battle_lethal_blood_moon.ogg"
+            "duel_trap" -> "bgm/battle_trap_mechanism.ogg"
+            "duel_guardian", "guardian" -> "bgm/battle_guardian_secret_realm.ogg"
+            "duel_boss", "boss" -> "bgm/battle_boss_martial_supreme.ogg"
             else -> null
         } ?: return
         try {
@@ -68,16 +88,22 @@ class SoundManager(context: Context) {
     }
 
     fun stopBgm() {
+        stopBgm(keepCurrent = false)
+    }
+
+    private fun stopBgm(keepCurrent: Boolean) {
         bgmPlayer?.apply {
             if (isPlaying) stop()
             release()
         }
         bgmPlayer = null
+        if (!keepCurrent) currentBgmType = null
     }
 
     fun toggleMute() {
         isMuted.value = !isMuted.value
-        if (isMuted.value) stopBgm() else bgmPlayer?.start()
+        if (isMuted.value) stopBgm(keepCurrent = true)
+        else currentBgmType?.let { playBgm(appContext, it, currentLoop) }
     }
 
     fun release() {

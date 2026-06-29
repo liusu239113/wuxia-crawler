@@ -8,6 +8,7 @@ data class RealmState(
     var isExploring: Boolean = false,
     var isPaused: Boolean = true,
     var isEventActive: Boolean = false,
+    var currentEvent: String = "",
     var actionCounter: Int = 0,
     var enemyBaseLevel: Int = 1,
     var enemyLevelGap: Int = 5,

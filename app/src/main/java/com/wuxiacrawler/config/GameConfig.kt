@@ -46,49 +46,49 @@ enum class EquipmentAttribute { DAMAGE, DEFENSE }
 /** 装备类型 */
 enum class EquipmentType(val displayName: String, val attr: EquipmentAttribute) {
     // 兵器（Damage）
-    SWORD("长剑", EquipmentAttribute.DAMAGE),
-    AXE("巨斧", EquipmentAttribute.DAMAGE),
-    HAMMER("重锤", EquipmentAttribute.DAMAGE),
-    DAGGER("匕首", EquipmentAttribute.DAMAGE),
-    WHIP("软鞭", EquipmentAttribute.DAMAGE),
-    SCYTHE("钩镰", EquipmentAttribute.DAMAGE),
+    SWORD("青锋剑", EquipmentAttribute.DAMAGE),
+    AXE("开山斧", EquipmentAttribute.DAMAGE),
+    HAMMER("镇岳锤", EquipmentAttribute.DAMAGE),
+    DAGGER("袖里刃", EquipmentAttribute.DAMAGE),
+    WHIP("游龙鞭", EquipmentAttribute.DAMAGE),
+    SCYTHE("月牙镰", EquipmentAttribute.DAMAGE),
     // 护甲（Defense）
-    PLATE_ARMOR("板甲", EquipmentAttribute.DEFENSE),
-    CHAIN_ARMOR("锁子甲", EquipmentAttribute.DEFENSE),
-    LEATHER_ARMOR("皮甲", EquipmentAttribute.DEFENSE),
+    PLATE_ARMOR("玄铁甲", EquipmentAttribute.DEFENSE),
+    CHAIN_ARMOR("金丝软甲", EquipmentAttribute.DEFENSE),
+    LEATHER_ARMOR("夜行衣", EquipmentAttribute.DEFENSE),
     // 盾牌（Defense）
-    TOWER_SHIELD("塔盾", EquipmentAttribute.DEFENSE),
-    KITE_SHIELD("鸢盾", EquipmentAttribute.DEFENSE),
-    BUCKLER("圆盾", EquipmentAttribute.DEFENSE),
+    TOWER_SHIELD("玄武盾", EquipmentAttribute.DEFENSE),
+    KITE_SHIELD("雁翎盾", EquipmentAttribute.DEFENSE),
+    BUCKLER("八卦盾", EquipmentAttribute.DEFENSE),
     // 头盔（Defense）
-    GREAT_HELM("重盔", EquipmentAttribute.DEFENSE),
-    HORNED_HELM("角盔", EquipmentAttribute.DEFENSE),
+    GREAT_HELM("狮首盔", EquipmentAttribute.DEFENSE),
+    HORNED_HELM("龙纹冠", EquipmentAttribute.DEFENSE),
 }
 
 /** 敌人名库（匹配原版每个 archetype 下的具体名字） */
 object EnemyNames {
-    val OFFENSIVE_NORMAL = listOf("山贼弓手", "黑狼", "冰原狼", "剑奴", "骷髅射手", "骷髅剑师", "骷髅刺客", "骷髅海盗", "赤蜘蛛", "兽人斧卫", "兽人射手")
-    val OFFENSIVE_GUARDIAN = listOf("霸天·妖兽统领", "骨皇·骷髅君主", "炽热蜘蛛王", "不死·骸骨帝王")
-    val OFFENSIVE_BOSS = listOf("灭世·比希摩斯", "龙帝·煞拉洛斯")
+    val OFFENSIVE_NORMAL = listOf("飞刀恶徒", "黑风狼卫", "寒岭狼卫", "断剑门徒", "白骨弩手", "白骨剑客", "白骨影刺", "水寨骷匪", "赤炼蛛奴", "蛮寨斧客", "蛮寨弓手")
+    val OFFENSIVE_GUARDIAN = listOf("霸刀·黑寨统领", "骨皇·白骨门主", "赤炼·蛛王", "不死·骸骨宗师")
+    val OFFENSIVE_BOSS = listOf("镇狱·魔尊", "龙庭·煞罗王")
 
-    val DEFENSIVE_NORMAL = listOf("石魔像", "金甲剑奴", "圣光天使", "绿毒蜘蛛", "骷髅骑士", "骷髅武士")
-    val DEFENSIVE_GUARDIAN = listOf("魔液君主", "星灵·天蟹圣者", "圣光·白昼泰坦")
-    val DEFENSIVE_BOSS = listOf("死灵·乌利奥特")
+    val DEFENSIVE_NORMAL = listOf("铁布衫石奴", "金甲剑侍", "明王护法", "碧毒蛛奴", "白骨铁骑", "白骨刀客")
+    val DEFENSIVE_GUARDIAN = listOf("化血·坛主", "天蟹·星宿护法", "明王·金身罗汉")
+    val DEFENSIVE_BOSS = listOf("幽冥·尸王")
 
-    val BALANCED_NORMAL = listOf("山贼", "魔液兽", "金甲剑奴", "兽人剑师", "兽人斧卫", "兽人射手", "蜘蛛", "骷髅骑士", "骷髅武士")
-    val BALANCED_GUARDIAN = listOf("龙骑·泰玛特", "无名·堕落之王", "星灵·白羊圣者")
-    val BALANCED_BOSS = listOf("熔岩·伊弗利特", "冰霜·希瓦", "死神·萨纳托斯")
+    val BALANCED_NORMAL = listOf("黑寨喽啰", "化血妖人", "金甲剑侍", "蛮寨剑客", "蛮寨斧客", "蛮寨弓手", "毒窟蛛奴", "白骨铁骑", "白骨刀客")
+    val BALANCED_GUARDIAN = listOf("龙骑·天摩尊者", "无名·堕落剑王", "白羊·星宿护法")
+    val BALANCED_BOSS = listOf("熔岩·火云老祖", "冰魄·寒霜宫主", "索命·阎罗判官")
 
-    val QUICK_NORMAL = listOf("山贼", "山贼刺客", "山贼弓手", "狼", "黑狼", "冰原狼", "兽人剑师", "蜘蛛", "赤蜘蛛", "绿毒蜘蛛", "骷髅剑师", "骷髅海盗", "骷髅刺客")
-    val QUICK_GUARDIAN = listOf("蚁后·莉拉德", "发条·机械蜘蛛")
-    val QUICK_BOSS = listOf("暗影·天使收割者", "蛛龙·奈兹彻")
+    val QUICK_NORMAL = listOf("黑寨喽啰", "飞檐刺客", "飞刀恶徒", "荒原狼卫", "黑风狼卫", "寒岭狼卫", "蛮寨剑客", "毒窟蛛奴", "赤炼蛛奴", "碧毒蛛奴", "白骨剑客", "水寨骷匪", "白骨影刺")
+    val QUICK_GUARDIAN = listOf("蚁后·千丝夫人", "机括·机关蛛王")
+    val QUICK_BOSS = listOf("暗影·夺魂使", "蛛龙·盘丝老祖")
 
-    val LETHAL_NORMAL = listOf("山贼刺客", "狼", "黑狼", "冰原狼", "兽人剑师", "兽人斧卫", "赤蜘蛛", "骷髅剑师", "骷髅刺客")
-    val LETHAL_GUARDIAN = listOf("致命·弑神狼", "冥犬·赫尔猎犬", "三头·刻耳柏洛斯")
-    val LETHAL_BOSS = listOf("血煞·狂化妖")
+    val LETHAL_NORMAL = listOf("飞檐刺客", "荒原狼卫", "黑风狼卫", "寒岭狼卫", "蛮寨剑客", "蛮寨斧客", "赤炼蛛奴", "白骨剑客", "白骨影刺")
+    val LETHAL_GUARDIAN = listOf("弑神·天狼煞", "冥犬·黄泉猎犬", "三首·地狱獒王")
+    val LETHAL_BOSS = listOf("血煞·疯魔刀圣")
 
-    val MIMIC_CHEST = "宝箱怪"
-    val MIMIC_DOOR = "秘境假门"
+    val MIMIC_CHEST = "机关宝匣"
+    val MIMIC_DOOR = "幻阵假门"
 }
 
 /** 武学被动技能 */
