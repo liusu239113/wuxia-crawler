@@ -52,17 +52,47 @@ enum class EquipmentType(val displayName: String, val attr: EquipmentAttribute) 
     DAGGER("袖里刃", EquipmentAttribute.DAMAGE),
     WHIP("游龙鞭", EquipmentAttribute.DAMAGE),
     SCYTHE("月牙镰", EquipmentAttribute.DAMAGE),
+    SPEAR("梨花枪", EquipmentAttribute.DAMAGE),
+    SABER("雁翎刀", EquipmentAttribute.DAMAGE),
+    STAFF("盘龙棍", EquipmentAttribute.DAMAGE),
+    FAN("铁骨扇", EquipmentAttribute.DAMAGE),
+    NEEDLE("暴雨针", EquipmentAttribute.DAMAGE),
+    BLADE_RING("乾坤轮", EquipmentAttribute.DAMAGE),
     // 护甲（Defense）
     PLATE_ARMOR("玄铁甲", EquipmentAttribute.DEFENSE),
     CHAIN_ARMOR("金丝软甲", EquipmentAttribute.DEFENSE),
     LEATHER_ARMOR("夜行衣", EquipmentAttribute.DEFENSE),
+    SCALE_ARMOR("龙鳞甲", EquipmentAttribute.DEFENSE),
+    ROBE_ARMOR("青云袍", EquipmentAttribute.DEFENSE),
+    VINE_ARMOR("藤纹甲", EquipmentAttribute.DEFENSE),
     // 盾牌（Defense）
     TOWER_SHIELD("玄武盾", EquipmentAttribute.DEFENSE),
     KITE_SHIELD("雁翎盾", EquipmentAttribute.DEFENSE),
     BUCKLER("八卦盾", EquipmentAttribute.DEFENSE),
+    LOTUS_SHIELD("莲花盾", EquipmentAttribute.DEFENSE),
+    TIGER_SHIELD("虎面盾", EquipmentAttribute.DEFENSE),
+    COPPER_SHIELD("赤铜盾", EquipmentAttribute.DEFENSE),
     // 头盔（Defense）
     GREAT_HELM("狮首盔", EquipmentAttribute.DEFENSE),
     HORNED_HELM("龙纹冠", EquipmentAttribute.DEFENSE),
+    BAMBOO_HAT("斗笠", EquipmentAttribute.DEFENSE),
+    JADE_CROWN("青玉冠", EquipmentAttribute.DEFENSE),
+    IRON_MASK("铁面具", EquipmentAttribute.DEFENSE),
+    CLOTH_BAND("束发带", EquipmentAttribute.DEFENSE),
+    // 鞋履（Defense）
+    CLOUD_BOOTS("踏云靴", EquipmentAttribute.DEFENSE),
+    IRON_BOOTS("玄铁靴", EquipmentAttribute.DEFENSE),
+    WIND_BOOTS("追风履", EquipmentAttribute.DEFENSE),
+    SHADOW_BOOTS("夜影靴", EquipmentAttribute.DEFENSE),
+    RAIN_BOOTS("听雨鞋", EquipmentAttribute.DEFENSE),
+    MONK_SHOES("罗汉履", EquipmentAttribute.DEFENSE),
+    // 饰品（Defense）
+    JADE_PENDANT("青玉佩", EquipmentAttribute.DEFENSE),
+    TIGER_TOKEN("虎符坠", EquipmentAttribute.DEFENSE),
+    BELL_CHARM("镇魂铃", EquipmentAttribute.DEFENSE),
+    SWORD_TASSEL("剑穗", EquipmentAttribute.DEFENSE),
+    BLOOD_RING("血玉戒", EquipmentAttribute.DEFENSE),
+    LOTUS_BEAD("莲心珠", EquipmentAttribute.DEFENSE),
 }
 
 /** 敌人名库（匹配原版每个 archetype 下的具体名字） */

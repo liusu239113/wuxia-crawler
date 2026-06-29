@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.wuxiacrawler.data.CombatState
 import com.wuxiacrawler.config.EquipmentRarity
 import com.wuxiacrawler.config.CultivationRealm
@@ -63,11 +64,19 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
     val pFlinch by engine.playerFlinch.collectAsState()
     val dmgNums by engine.dmgNumbers.collectAsState()
     val showLvlUp by engine.showLevelUp.collectAsState()
+    val storyDialogue by engine.storyDialogue.collectAsState()
+    val eventPrompt by engine.eventPrompt.collectAsState()
     val muted by engine.soundManager.muted.collectAsState()
     val bgmVolume by engine.soundManager.bgmLevel.collectAsState()
     val sfxVolume by engine.soundManager.sfxLevel.collectAsState()
 
     var tab by remember { mutableIntStateOf(0) }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        if (engine.combatState.value == null) engine.soundManager.playBgm(context, "jianghu")
+    }
 
     // 弹窗
     BreakthroughDialog(btPending, btInfo, engine)
@@ -117,6 +126,7 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
 
     LaunchedEffect(eFlinch) { if (eFlinch) { delay(150); engine._enemyFlinch.value = false } }
     LaunchedEffect(pFlinch) { if (pFlinch) { delay(150); engine._playerFlinch.value = false } }
+    LaunchedEffect(toastMessage) { if (toastMessage != null) { delay(1500); toastMessage = null } }
 
     // ===== 主体 =====
     Box(Modifier.fillMaxSize().background(BgDark)) {
@@ -128,19 +138,28 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
             Box(Modifier.padding(padding).fillMaxSize()) {
                 when (tab) {
                     0 -> AdventureTab(realm, player, rLog, engine)
-                    1 -> InventoryTab(engine, player)
+                    1 -> InventoryTab(engine, player) { toastMessage = it }
                     2 -> CharacterTab(player, engine)
-                    3 -> SettingsTab(engine, player, muted, bgmVolume, sfxVolume) { onDeath() }
+                    3 -> SettingsTab(engine, player, muted, bgmVolume, sfxVolume, onSaveFeedback = { success ->
+                        toastMessage = if (success) "保存成功" else "当前处于事件或战斗中，暂不能保存"
+                    }) { onDeath() }
                 }
             }
         }
 
         // 战斗覆盖层
         val combatCs = cs
-        if (combatCs != null && !combatCs.enemyDead && !combatCs.playerDead)
-            CombatOverlay(combatCs, cLog, sprite, eFlinch, pFlinch, dmgNums, engine)
-        if (combatCs != null && (combatCs.enemyDead || combatCs.playerDead))
-            CombatResultOverlay(combatCs, engine, onDeath)
+        if (combatCs != null) {
+            if (player.inCombat && !combatCs.enemyDead && !combatCs.playerDead) {
+                CombatOverlay(combatCs, cLog, sprite, eFlinch, pFlinch, dmgNums, engine)
+            }
+            if (combatCs.playerDead || realm.currentEvent == "combat_result") {
+                CombatResultOverlay(combatCs, engine, onDeath)
+            }
+        }
+        StoryDialogue(storyDialogue) { engine.dismissStoryDialogue() }
+        EventChoiceDialog(eventPrompt, realm, engine)
+        ToastBubble(toastMessage)
     }
 }
 
@@ -178,6 +197,68 @@ private fun LevelUpDialog(show: Boolean, upgrades: List<com.wuxiacrawler.config.
     )
 }
 
+@Composable
+private fun EventChoiceDialog(prompt: com.wuxiacrawler.engine.GameEngine.EventPrompt?, realm: com.wuxiacrawler.data.RealmState, engine: com.wuxiacrawler.engine.GameEngine) {
+    if (!realm.isEventActive || realm.currentEvent == "combat_result" || engine.player.value.inCombat || prompt == null) return
+    val opts = prompt.choices.filter { it.isNotBlank() }
+    if (opts.isEmpty()) return
+
+    Dialog(onDismissRequest = {}) {
+        Column(
+            Modifier.fillMaxWidth()
+                .border(1.dp, GoldAccent, RoundedCornerShape(10.dp))
+                .background(BgPanel, RoundedCornerShape(10.dp))
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("江湖抉择", color = GoldAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(prompt.message, color = TextWhite, fontSize = 14.sp, lineHeight = 20.sp, textAlign = TextAlign.Center)
+            opts.forEachIndexed { i, option ->
+                Button(
+                    onClick = { engine.soundManager.playSfx("wood_confirm"); engine.chooseOption(i) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.fillMaxWidth().height(42.dp).border(1.dp, BorderWhite, RoundedCornerShape(6.dp))
+                ) { Text(option, color = TextWhite, fontSize = 14.sp) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StoryDialogue(text: String?, onContinue: () -> Unit) {
+    if (text == null) return
+    Box(Modifier.fillMaxSize().padding(14.dp), contentAlignment = Alignment.BottomCenter) {
+        Column(
+            Modifier.fillMaxWidth()
+                .border(1.dp, GoldAccent, RoundedCornerShape(10.dp))
+                .background(BgPanel.copy(alpha = 0.96f), RoundedCornerShape(10.dp))
+                .clickable { onContinue() }
+                .padding(14.dp)
+        ) {
+            Text("旧牢回声", color = GoldAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text(text, color = TextWhite, fontSize = 15.sp, lineHeight = 22.sp)
+            Spacer(Modifier.height(8.dp))
+            Text("点击继续", color = TextGray, fontSize = 11.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
+        }
+    }
+}
+
+@Composable
+private fun ToastBubble(message: String?) {
+    if (message == null) return
+    Box(Modifier.fillMaxSize().padding(bottom = 92.dp), contentAlignment = Alignment.BottomCenter) {
+        Text(
+            message,
+            color = TextWhite,
+            fontSize = 13.sp,
+            modifier = Modifier.background(Color(0xDD222222), RoundedCornerShape(18.dp)).padding(horizontal = 16.dp, vertical = 9.dp)
+        )
+    }
+}
+
 // ==================== TOP HEADER ====================
 @Composable
 private fun TopHeader(player: com.wuxiacrawler.data.PlayerEntity, muted: Boolean, onToggleMute: () -> Unit) {
@@ -203,10 +284,14 @@ private fun TopHeader(player: com.wuxiacrawler.data.PlayerEntity, muted: Boolean
             Text("气血 ${player.stats.hp}/${player.stats.hpMax}   斩敌 ${player.kills}   败北 ${player.deaths}", color = TextGray, fontSize = 10.sp)
         }
         Box(
-            Modifier.size(38.dp).border(1.dp, BorderWhite, RoundedCornerShape(6.dp)).clickable { onToggleMute() },
+            Modifier.size(44.dp)
+                .border(1.dp, BorderWhite, RoundedCornerShape(8.dp))
+                .background(BgDark, RoundedCornerShape(8.dp))
+                .clickable { onToggleMute() }
+                .padding(4.dp),
             contentAlignment = Alignment.Center
         ) {
-            AssetImageBox("ui/icons/sound.png", 24, if (muted) "静音" else "声音")
+            AssetImageBox("ui/icons/sound.png", 26, if (muted) "静音" else "声音")
         }
     }
 }
@@ -248,6 +333,8 @@ private fun AdventureTab(realm: com.wuxiacrawler.data.RealmState, player: com.wu
             MiniStat("暴", "%.1f%%".format(player.stats.critRate), TextGray)
         }
 
+        QuestCard(engine.currentQuestInfo())
+
         // 探索条
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
@@ -257,8 +344,8 @@ private fun AdventureTab(realm: com.wuxiacrawler.data.RealmState, player: com.wu
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("暗牢第 ${realm.floor} 层", color = GoldAccent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("房间 ${realm.room}/${realm.roomsPerFloor}   本层斩敌 ${realm.currentKills}", color = TextGray, fontSize = 11.sp)
+                    Text(engine.currentAreaName(realm.floor), color = GoldAccent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("第 ${realm.floor} 层 · 房间 ${realm.room}/${realm.roomsPerFloor}   本层斩敌 ${realm.currentKills}", color = TextGray, fontSize = 11.sp)
                 }
                 Button(
                     onClick = { if (realm.isExploring) engine.pauseExploring() else engine.startExploring() },
@@ -272,25 +359,6 @@ private fun AdventureTab(realm: com.wuxiacrawler.data.RealmState, player: com.wu
             val roomPct = (realm.room.toFloat() / realm.roomsPerFloor.coerceAtLeast(1)).coerceIn(0f, 1f)
             Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF342817))) {
                 Box(Modifier.fillMaxWidth(roomPct).fillMaxHeight().background(GoldAccent))
-            }
-        }
-
-        // 事件选项
-        if (realm.isEventActive && rLog.isNotEmpty()) {
-            val last = rLog.last()
-            if (last.contains("[选项:")) {
-                val opts = last.substringAfter("[选项:").substringBefore("]").split("|").map { it.trim() }
-                Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 3.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    opts.forEachIndexed { i, o ->
-                        Button(
-                            onClick = { engine.soundManager.playSfx("wood_confirm"); engine.chooseOption(i) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.height(34.dp).border(1.dp, BorderWhite, RoundedCornerShape(4.dp))
-                        ) { Text(o, color = TextWhite, fontSize = 13.sp) }
-                    }
-                }
             }
         }
 
@@ -327,6 +395,22 @@ private fun combatLogColor(log: String): Color = when {
 }
 
 @Composable
+private fun QuestCard(quest: com.wuxiacrawler.engine.GameEngine.QuestInfo) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)
+            .border(1.dp, GoldAccent.copy(alpha = 0.75f), RoundedCornerShape(8.dp))
+            .background(Color(0xEE17110D), RoundedCornerShape(8.dp))
+            .padding(10.dp)
+    ) {
+        Text(quest.chapter, color = GoldAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(quest.title, color = TextWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+        Text(quest.objective, color = TextWhite, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 4.dp))
+        Text(quest.progress, color = TextGray, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+        Text(quest.story, color = TextGray, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 6.dp))
+    }
+}
+
+@Composable
 private fun MiniStat(label: String, value: String, color: Color) {
     Row(Modifier.background(BgPanel, RoundedCornerShape(3.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -337,7 +421,7 @@ private fun MiniStat(label: String, value: String, color: Color) {
 
 // ==================== TAB 1: 行囊 ====================
 @Composable
-private fun InventoryTab(engine: com.wuxiacrawler.engine.GameEngine, player: com.wuxiacrawler.data.PlayerEntity) {
+private fun InventoryTab(engine: com.wuxiacrawler.engine.GameEngine, player: com.wuxiacrawler.data.PlayerEntity, onFeedback: (String) -> Unit) {
     val eq = engine.parseEquipped()
     val inv = engine.parseInventory()
     val activeSetBonuses = engine.activeSetBonusDescriptions()
@@ -362,22 +446,26 @@ private fun InventoryTab(engine: com.wuxiacrawler.engine.GameEngine, player: com
             }
         }
 
-        Text("已装备 (${eq.size}/9)", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
-        Column(Modifier.fillMaxWidth().border(1.dp, BorderWhite, RoundedCornerShape(8.dp)).padding(6.dp)) {
-            for (row in 0 until 3) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (col in 0 until 3) {
-                        val index = row * 3 + col
-                        val slotName = listOf("兵器", "护甲", "盾牌", "头盔", "护腕", "鞋履", "饰品", "秘籍", "暗器")[index]
-                        EquipmentSlot(eq.getOrNull(index), slotName, Modifier.weight(1f)) {
-                            if (eq.getOrNull(index) != null) {
-                                selected = eq[index]
-                                selectedEquippedIndex = index
-                            }
-                        }
+        Text("已装备 (6槽)", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
+        Row(Modifier.fillMaxWidth().border(1.dp, BorderWhite, RoundedCornerShape(8.dp)).padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            val slotNames = listOf("兵器", "护甲", "盾牌", "头盔", "鞋履", "饰品")
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (index in 0..2) {
+                    EquipmentSlot(eq.getOrNull(index)?.takeIf { it.category.isNotBlank() }, slotNames[index], Modifier.fillMaxWidth()) {
+                        eq.getOrNull(index)?.takeIf { it.category.isNotBlank() }?.let { selected = it; selectedEquippedIndex = index }
                     }
                 }
-                if (row < 2) Spacer(Modifier.height(6.dp))
+            }
+            Box(Modifier.size(104.dp).border(1.dp, GoldAccent, RoundedCornerShape(8.dp)).padding(4.dp), contentAlignment = Alignment.Center) {
+                AssetImageBox(player.portrait, 96, player.name)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (index in 3..5) {
+                    EquipmentSlot(eq.getOrNull(index)?.takeIf { it.category.isNotBlank() }, slotNames[index], Modifier.fillMaxWidth()) {
+                        eq.getOrNull(index)?.takeIf { it.category.isNotBlank() }?.let { selected = it; selectedEquippedIndex = index }
+                    }
+                }
             }
         }
         if (activeSetBonuses.isNotEmpty()) {
@@ -392,10 +480,23 @@ private fun InventoryTab(engine: com.wuxiacrawler.engine.GameEngine, player: com
         selected?.let {
             EquipmentDetail(
                 item = it,
+                engine = engine,
                 equippedIndex = selectedEquippedIndex,
                 onUnequip = { if (selectedEquippedIndex >= 0) { engine.unequipItem(selectedEquippedIndex); selected = null; selectedEquippedIndex = -1 } },
-                onEnhance = { if (selectedEquippedIndex >= 0) { engine.enhanceEquipped(selectedEquippedIndex); selected = engine.parseEquipped().getOrNull(selectedEquippedIndex) } },
-                onReforge = { if (selectedEquippedIndex >= 0) { engine.reforgeEquipped(selectedEquippedIndex); selected = engine.parseEquipped().getOrNull(selectedEquippedIndex) } }
+                onEnhance = {
+                    if (selectedEquippedIndex >= 0) {
+                        val ok = engine.enhanceEquipped(selectedEquippedIndex)
+                        selected = engine.parseEquipped().getOrNull(selectedEquippedIndex)
+                        onFeedback(if (ok) "强化成功" else "银两不足，强化失败")
+                    }
+                },
+                onReforge = {
+                    if (selectedEquippedIndex >= 0) {
+                        val ok = engine.reforgeEquipped(selectedEquippedIndex)
+                        selected = engine.parseEquipped().getOrNull(selectedEquippedIndex)
+                        onFeedback(if (ok) "重铸成功，词条已变化" else "银两不足，重铸失败")
+                    }
+                }
             )
         }
 
@@ -431,7 +532,7 @@ private fun EquipmentSlot(item: com.wuxiacrawler.data.EquipmentItem?, slotName: 
             Text(slotName, color = TextGray, fontSize = 10.sp)
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                AssetImageBox("ui/icons/equipment.png", 20, item.category)
+                EquipmentBadge(item, 22)
                 Text(item.category.take(3), color = RarityCol[item.rarity] ?: TextWhite, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 Text("品${item.lvl}", color = TextGray, fontSize = 9.sp)
             }
@@ -440,8 +541,89 @@ private fun EquipmentSlot(item: com.wuxiacrawler.data.EquipmentItem?, slotName: 
 }
 
 @Composable
+private fun EquipmentBadge(item: com.wuxiacrawler.data.EquipmentItem, sizeDp: Int) {
+    val color = RarityCol[item.rarity] ?: TextWhite
+    val icon = equipmentIconPath(item.category)
+    if (icon != null) {
+        Box(
+            Modifier.size(sizeDp.dp)
+                .border(1.dp, color, RoundedCornerShape(5.dp))
+                .background(color.copy(alpha = 0.12f), RoundedCornerShape(5.dp))
+                .padding(2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            AssetImageBox(icon, sizeDp - 4, item.category)
+        }
+        return
+    }
+    val mark = when (item.category) {
+        "青锋剑" -> "剑"; "开山斧" -> "斧"; "镇岳锤" -> "锤"
+        "袖里刃" -> "刃"; "游龙鞭" -> "鞭"; "月牙镰" -> "镰"
+        "玄铁甲" -> "甲"; "金丝软甲" -> "衫"; "夜行衣" -> "衣"
+        "玄武盾" -> "盾"; "雁翎盾" -> "翎"; "八卦盾" -> "卦"
+        "狮首盔" -> "盔"; "龙纹冠" -> "冠"
+        else -> item.category.take(1)
+    }
+    Box(
+        Modifier.size(sizeDp.dp)
+            .border(1.dp, color, RoundedCornerShape(5.dp))
+            .background(color.copy(alpha = 0.16f), RoundedCornerShape(5.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(mark, color = color, fontSize = (sizeDp / 2).sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+private fun equipmentIconPath(category: String): String? = when (category) {
+    "青锋剑" -> "ui/equipment/qingfeng_sword.png"
+    "开山斧" -> "ui/equipment/kaishan_axe.png"
+    "镇岳锤" -> "ui/equipment/zhenyue_hammer.png"
+    "袖里刃" -> "ui/equipment/xiuli_dagger.png"
+    "游龙鞭" -> "ui/equipment/youlong_whip.png"
+    "月牙镰" -> "ui/equipment/yueya_scythe.png"
+    "梨花枪" -> "ui/equipment/lihua_spear.png"
+    "雁翎刀" -> "ui/equipment/yanling_saber.png"
+    "盘龙棍" -> "ui/equipment/panlong_staff.png"
+    "铁骨扇" -> "ui/equipment/tiegu_fan.png"
+    "暴雨针" -> "ui/equipment/baoyu_needle.png"
+    "乾坤轮" -> "ui/equipment/qiankun_ring.png"
+    "玄铁甲" -> "ui/equipment/xuantie_armor.png"
+    "金丝软甲" -> "ui/equipment/jinsi_armor.png"
+    "夜行衣" -> "ui/equipment/yexing_cloth.png"
+    "龙鳞甲" -> "ui/equipment/longlin_armor.png"
+    "青云袍" -> "ui/equipment/qingyun_robe.png"
+    "藤纹甲" -> "ui/equipment/tengwen_armor.png"
+    "玄武盾" -> "ui/equipment/xuanwu_shield.png"
+    "雁翎盾" -> "ui/equipment/yanling_shield.png"
+    "八卦盾" -> "ui/equipment/bagua_shield.png"
+    "莲花盾" -> "ui/equipment/lianhua_shield.png"
+    "虎面盾" -> "ui/equipment/humian_shield.png"
+    "赤铜盾" -> "ui/equipment/chitong_shield.png"
+    "狮首盔" -> "ui/equipment/shishou_helm.png"
+    "龙纹冠" -> "ui/equipment/longwen_crown.png"
+    "斗笠" -> "ui/equipment/douli_hat.png"
+    "青玉冠" -> "ui/equipment/qingyu_crown.png"
+    "铁面具" -> "ui/equipment/tie_mask.png"
+    "束发带" -> "ui/equipment/shufa_band.png"
+    "踏云靴" -> "ui/equipment/tayun_boots.png"
+    "玄铁靴" -> "ui/equipment/xuantie_boots.png"
+    "追风履" -> "ui/equipment/zhuifeng_boots.png"
+    "夜影靴" -> "ui/equipment/yeying_boots.png"
+    "听雨鞋" -> "ui/equipment/tingyu_shoes.png"
+    "罗汉履" -> "ui/equipment/luohan_shoes.png"
+    "青玉佩" -> "ui/equipment/qingyu_pendant.png"
+    "虎符坠" -> "ui/equipment/hufu_pendant.png"
+    "镇魂铃" -> "ui/equipment/zhenhun_bell.png"
+    "剑穗" -> "ui/equipment/jian_su.png"
+    "血玉戒" -> "ui/equipment/xueyu_ring.png"
+    "莲心珠" -> "ui/equipment/lianxin_pearl.png"
+    else -> null
+}
+
+@Composable
 private fun EquipmentDetail(
     item: com.wuxiacrawler.data.EquipmentItem,
+    engine: com.wuxiacrawler.engine.GameEngine,
     equippedIndex: Int,
     onUnequip: () -> Unit,
     onEnhance: () -> Unit,
@@ -456,6 +638,8 @@ private fun EquipmentDetail(
         }
         Text(statText.ifBlank { "无额外属性" }, color = TextWhite, fontSize = 11.sp, lineHeight = 16.sp)
         if (equippedIndex >= 0) {
+            Text("强化消耗 ${engine.enhanceCost(item)} 两，提升当前词条约8%", color = TextGray, fontSize = 10.sp)
+            Text("重铸消耗 ${engine.reforgeCost(item)} 两，重新随机该装备词条", color = TextGray, fontSize = 10.sp)
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onEnhance, modifier = Modifier.weight(1f)) { Text("强化", color = GoldAccent, fontSize = 12.sp) }
                 TextButton(onClick = onReforge, modifier = Modifier.weight(1f)) { Text("重铸", color = TextWhite, fontSize = 12.sp) }
@@ -476,7 +660,7 @@ private fun InventoryItemRow(item: com.wuxiacrawler.data.EquipmentItem, onEquip:
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(Modifier.weight(1f).clickable { onEquip() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AssetImageBox("ui/icons/equipment.png", 28, item.category)
+            EquipmentBadge(item, 30)
             Column {
                 Text("${item.rarity} ${item.category}", color = RarityCol[item.rarity] ?: TextWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Text("${item.type} · 品阶${item.lvl} · ${item.value}两", color = TextGray, fontSize = 10.sp)
@@ -629,6 +813,7 @@ private fun SettingsTab(
     muted: Boolean,
     bgmVolume: Float,
     sfxVolume: Float,
+    onSaveFeedback: (Boolean) -> Unit,
     onReturnTitle: () -> Unit
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
@@ -640,7 +825,7 @@ private fun SettingsTab(
         VolumeRow("音效音量", sfxVolume) { engine.soundManager.setSfxVolume(it) }
 
         Spacer(Modifier.height(12.dp))
-        SettingButton("保存进度", "安全存档", icon = "ui/icons/save.png") { engine.trySafeSave() }
+        SettingButton("保存进度", "安全存档", icon = "ui/icons/save.png") { onSaveFeedback(engine.trySafeSave()) }
         SettingButton("删除存档", "危险操作", icon = "ui/icons/delete.png", isDanger = true) { engine.deleteSave(); onReturnTitle() }
         SettingButton("返回标题", "回到主菜单", icon = "ui/icons/back.png") { engine.saveGame(); onReturnTitle() }
 
@@ -685,7 +870,7 @@ private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eF
     val pScale by animateFloatAsState(if (pFl) 0.96f else 1f, spring(stiffness = Spring.StiffnessHigh), label = "playerScale")
 
     val bitmap = remember(sprite) {
-        try { BitmapFactory.decodeStream(ctx.assets.open("sprites/${sprite}.png"))?.asImageBitmap() } catch (_: Exception) { null }
+        try { BitmapFactory.decodeStream(ctx.assets.open("武侠png/${sprite}.png"))?.asImageBitmap() } catch (_: Exception) { null }
     }
 
     Box(Modifier.fillMaxSize().background(BgDark.copy(alpha = 0.95f)).padding(8.dp)) {
@@ -705,15 +890,18 @@ private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eF
                 }
                 Spacer(Modifier.height(8.dp))
                 val ePct = (cs.enemyHp.toFloat() / cs.enemyHpMax).coerceIn(0f, 1f)
-                Box(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(4.dp)).background(Color.Gray)) {
-                    Box(Modifier.fillMaxWidth(ePct).fillMaxHeight().background(HpRed))
+                Box(Modifier.fillMaxWidth().height(22.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(4.dp)).background(Color.Gray)) {
+                        Box(Modifier.fillMaxWidth(ePct).fillMaxHeight().background(HpRed))
+                    }
+                    Text("${cs.enemyHp}/${cs.enemyHpMax}", color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
-                Text("${cs.enemyHp}/${cs.enemyHpMax}", color = TextWhite, fontSize = 11.sp)
-                Box(Modifier.height(24.dp)) {
-                    dmgNums.takeLast(3).forEachIndexed { i, dn ->
+                Text("攻:${cs.enemyAtk} 防:${cs.enemyDef} 速:${"%.1f".format(cs.enemyAtkSpd)}", color = TextGray, fontSize = 10.sp)
+                Box(Modifier.fillMaxWidth().height(28.dp), contentAlignment = Alignment.CenterEnd) {
+                    dmgNums.takeLast(2).forEachIndexed { i, dn ->
                         Text(dn.text, color = if (dn.isCrit) GoldAccent else TextWhite,
-                            fontSize = (16 - i * 3).sp, fontWeight = if (dn.isCrit) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.offset(y = (-i * 14).dp).graphicsLayer { alpha = 1f - i * 0.3f })
+                            fontSize = (15 - i * 2).sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.offset(x = (-(i * 42)).dp).background(Color(0xAA000000), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 2.dp).graphicsLayer { alpha = 1f - i * 0.25f })
                     }
                 }
             }
@@ -723,20 +911,23 @@ private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eF
             Column(Modifier.fillMaxWidth().border(1.dp, BorderWhite, RoundedCornerShape(6.dp)).padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(engine.player.value.name, color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(MartialRealmDisplay.fromLevel(engine.player.value.lvl), color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Box(Modifier.size(90.dp).graphicsLayer { translationX = pShake; scaleX = pScale; scaleY = pScale }, contentAlignment = Alignment.Center) { AssetImageBox(engine.player.value.portrait, 90, engine.player.value.name) }
                 val pPct = (cs.playerHp.toFloat() / cs.playerHpMax).coerceIn(0f, 1f)
-                Box(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(4.dp)).background(Color.Gray)) {
-                    Box(Modifier.fillMaxWidth(pPct).fillMaxHeight().background(HpRed))
+                Box(Modifier.fillMaxWidth().height(22.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(4.dp)).background(Color.Gray)) {
+                        Box(Modifier.fillMaxWidth(pPct).fillMaxHeight().background(HpRed))
+                    }
+                    Text("${cs.playerHp}/${cs.playerHpMax}", color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
-                Text("${cs.playerHp}/${cs.playerHpMax}", color = TextWhite, fontSize = 11.sp)
                 Text("攻:${cs.playerAtk} 防:${cs.playerDef} 速:${"%.1f".format(cs.playerAtkSpd)}", color = TextGray, fontSize = 10.sp)
             }
 
             Spacer(Modifier.height(6.dp))
 
-            Box(Modifier.fillMaxWidth().weight(1f).border(1.dp, BorderWhite, RoundedCornerShape(4.dp)).padding(4.dp)) {
+            Box(Modifier.fillMaxWidth().weight(1f).border(1.dp, BorderWhite, RoundedCornerShape(4.dp)).background(Color(0xEE080808), RoundedCornerShape(4.dp)).padding(8.dp)) {
                 LazyColumn(Modifier.fillMaxSize(), reverseLayout = true) {
-                    items(log.reversed().take(20)) { Text(it, color = combatLogColor(it), fontSize = 12.sp, modifier = Modifier.padding(vertical = 1.dp)) }
+                    items(log.reversed().take(18)) { Text(it, color = combatLogColor(it), fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(vertical = 2.dp)) }
                 }
             }
         }

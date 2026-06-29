@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -37,14 +38,21 @@ class MainActivity : ComponentActivity() {
                 mutableIntStateOf(if (engine.hasSave()) 0 else 0)
             }
 
+            LaunchedEffect(screen) {
+                if (screen != 1) engine.soundManager.stopBgm()
+            }
+
             // 后台自动存档
             val lifecycleOwner = LocalLifecycleOwner.current
             DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_STOP) {
+                        engine.soundManager.onEnterBackground()
                         if (engine.player.value.isAllocated) {
                             engine.trySafeSave()
                         }
+                    } else if (event == Lifecycle.Event.ON_START) {
+                        engine.soundManager.onEnterForeground()
                     }
                 }
                 lifecycleOwner.lifecycle.addObserver(observer)

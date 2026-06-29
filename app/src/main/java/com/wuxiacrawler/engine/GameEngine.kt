@@ -60,7 +60,64 @@ class GameEngine(private val context: Context) {
     val _showLevelUp = MutableStateFlow(false)
     val showLevelUp: StateFlow<Boolean> = _showLevelUp.asStateFlow()
 
+    private val _storyDialogue = MutableStateFlow<String?>(null)
+    val storyDialogue: StateFlow<String?> = _storyDialogue.asStateFlow()
+
+    data class EventPrompt(val message: String = "", val choices: List<String> = emptyList())
+    private val _eventPrompt = MutableStateFlow<EventPrompt?>(null)
+    val eventPrompt: StateFlow<EventPrompt?> = _eventPrompt.asStateFlow()
+
+    data class QuestInfo(val chapter: String, val title: String, val objective: String, val progress: String, val story: String)
+
     data class DmgNumber(val text: String, val isCrit: Boolean)
+
+    fun currentAreaName(floor: Int = _realm.value.floor): String {
+        val names = listOf(
+            "青石旧牢", "雨巷残门", "黑风寨道", "白骨渡口", "毒雾药窟",
+            "断剑校场", "盘丝暗廊", "星宿钩台", "龙门水寨", "金身佛堂",
+            "风雷崖", "寒霜宫道", "阎罗判堂", "血月刀冢", "无相狱心"
+        )
+        val cycle = (floor - 1) / names.size
+        val base = names[(floor - 1).coerceAtLeast(0) % names.size]
+        return if (cycle == 0) base else "$base · ${cycle + 1}巡"
+    }
+
+    fun currentQuestInfo(): QuestInfo {
+        val r = _realm.value
+        val p = _player.value
+        val chapterIndex = ((r.floor - 1) / 5) + 1
+        val chapter = "第${chapterIndex}章 · ${chapterTitle(chapterIndex)}"
+        val floorGoal = r.roomsPerFloor
+        val objective = when {
+            r.floor < 5 -> "追查断裂牢符，穿过${currentAreaName()}并击败本层守卫"
+            r.floor < 10 -> "寻找七派失踪线索，在${currentAreaName()}收集战利品强化自身"
+            r.floor < 15 -> "逼近暗牢阵眼，击破${currentAreaName()}的精英守卫"
+            else -> "揭开无相狱典真相，继续深入${currentAreaName()}"
+        }
+        val progress = "房间 ${r.room}/${floorGoal} · 本层斩敌 ${r.currentKills} · 境界 ${MartialRealmDisplay.fromLevel(p.lvl)}"
+        val story = chapterStory(chapterIndex)
+        return QuestInfo(chapter, "主线任务：${currentAreaName()}之谜", objective, progress, story)
+    }
+
+    private fun chapterTitle(chapter: Int): String = when (chapter) {
+        1 -> "雨夜旧牢"
+        2 -> "七派无踪"
+        3 -> "白骨渡灯"
+        4 -> "毒雾藏经"
+        5 -> "星宿旧盟"
+        6 -> "无相狱典"
+        else -> "江湖余烬"
+    }
+
+    private fun chapterStory(chapter: Int): String = when (chapter) {
+        1 -> "你从客栈雨声中醒来，掌柜留下的灯仍未熄灭。断裂牢符在掌心发热，像是在催你走向旧牢门。"
+        2 -> "七大门派的人不是失踪，而是被同一封信引入暗牢。每一扇门背后，都有一段被抹去的江湖旧账。"
+        3 -> "渡口白骨伏在水边，衣襟上绣着不同门派的纹样。有人将他们聚在这里，只为筛出能继续往下走的人。"
+        4 -> "药窟雾气里飘着熟悉的药香，你想起客栈掌柜袖口也曾有同样气味。救你的人，未必只想救你。"
+        5 -> "星宿钩台上刻着七派掌门的名字，最后一行却是你的姓氏。暗牢认识你，比你认识自己更早。"
+        6 -> "无相狱典并非武功秘籍，而是一座选择继承者的旧阵。要离开这里，你必须先知道自己为何被选中。"
+        else -> "暗牢越深，江湖越近。你走过的每一层，都在把一段被封存的真相推回人间。"
+    }
 
     private var nextCombatId = 1
 
@@ -87,7 +144,7 @@ class GameEngine(private val context: Context) {
         val oldHp = p.stats.hp
         val realm = CultivationRealm.entries.find { it.name == p.realm } ?: CultivationRealm.NONE
         val sect = MartialSect.entries.find { it.name == p.sect } ?: MartialSect.WANDERER
-        val equippedItems = parseEquipped()
+        val equippedItems = parseEquipped().filter { it.category.isNotBlank() }
         p.equippedStats = PlayerStats(0,0,0,0,0f,0f,0f,0f)
         p.setBonusStats = PlayerStats(0,0,0,0,0f,0f,0f,0f)
         for (item in equippedItems) for (sm in item.stats) for ((k,v) in sm) {
@@ -118,61 +175,78 @@ class GameEngine(private val context: Context) {
 
     fun parseEquipped(): List<EquipmentItem> {
         val j = _player.value.equipped; if (j.isBlank()||j=="[]") return emptyList()
-        return try { gson.fromJson(j, object: TypeToken<List<EquipmentItem>>(){}.type) } catch (_:Exception) { emptyList() }
+        return try { normalizeEquipped(gson.fromJson(j, object: TypeToken<List<EquipmentItem>>(){}.type)) } catch (_:Exception) { emptyList() }
+    }
+
+    private val equipSlots = listOf("兵器", "护甲", "盾牌", "头盔", "鞋履", "饰品")
+
+    private fun normalizeEquipped(items: List<EquipmentItem>): List<EquipmentItem> {
+        val slots = MutableList(equipSlots.size) { EquipmentItem(type = equipSlots[it]) }
+        items.filter { it.category.isNotBlank() }.forEach { item ->
+            val idx = equipSlots.indexOf(item.type).takeIf { it >= 0 } ?: 0
+            slots[idx] = item
+        }
+        return slots
     }
     private fun applySetBonuses(equippedItems: List<EquipmentItem>, bonus: PlayerStats) {
-        equippedItems.groupingBy { it.type }.eachCount().forEach { (type, count) ->
+        equippedItems.filter { it.category.isNotBlank() }.groupingBy { setFamily(it) }.eachCount().forEach { (family, count) ->
             if (count >= 2) {
-                when (type) {
-                    "兵器" -> bonus.atk += 20
-                    "护甲" -> bonus.hpMax += 80
-                    "盾牌" -> bonus.def += 14
-                    "头盔" -> bonus.critRate += 2f
+                when (family) {
+                    "玄铁" -> bonus.def += 18
+                    "游龙" -> bonus.atkSpd += 4f
+                    "夜行" -> bonus.critRate += 3f
+                    "青玉" -> bonus.hpMax += 90
+                    else -> bonus.atk += 16
                 }
             }
             if (count >= 4) {
-                when (type) {
-                    "兵器" -> bonus.critDmg += 12f
-                    "护甲" -> bonus.def += 20
-                    "盾牌" -> bonus.hpMax += 120
-                    "头盔" -> bonus.atkSpd += 4f
+                when (family) {
+                    "玄铁" -> bonus.hpMax += 160
+                    "游龙" -> bonus.critDmg += 16f
+                    "夜行" -> bonus.vamp += 3f
+                    "青玉" -> bonus.def += 22
+                    else -> bonus.critRate += 4f
                 }
             }
             if (count >= 6) {
-                when (type) {
-                    "兵器" -> bonus.vamp += 3f
-                    "护甲" -> bonus.vamp += 2f
-                    "盾牌" -> bonus.critRate += 4f
-                    "头盔" -> bonus.critDmg += 18f
-                }
+                bonus.vamp += 4f
+                bonus.critDmg += 22f
             }
         }
     }
 
     fun activeSetBonusDescriptions(): List<String> {
-        return parseEquipped().groupingBy { it.type }.eachCount().flatMap { (type, count) ->
+        return parseEquipped().filter { it.category.isNotBlank() }.groupingBy { setFamily(it) }.eachCount().flatMap { (family, count) ->
             val lines = mutableListOf<String>()
-            if (count >= 2) lines.add("$type 2件：${setBonusText(type, 2)}")
-            if (count >= 4) lines.add("$type 4件：${setBonusText(type, 4)}")
-            if (count >= 6) lines.add("$type 6件：${setBonusText(type, 6)}")
+            if (count >= 2) lines.add("$family 套装2件：${setBonusText(family, 2)}")
+            if (count >= 4) lines.add("$family 套装4件：${setBonusText(family, 4)}")
+            if (count >= 6) lines.add("$family 套装6件：${setBonusText(family, 6)}")
             lines
         }
     }
 
-    private fun setBonusText(type: String, pieces: Int): String = when (type to pieces) {
-        "兵器" to 2 -> "攻击+20"
-        "兵器" to 4 -> "暴伤+12%"
-        "兵器" to 6 -> "吸血+3%"
-        "护甲" to 2 -> "气血+80"
-        "护甲" to 4 -> "防御+20"
-        "护甲" to 6 -> "吸血+2%"
-        "盾牌" to 2 -> "防御+14"
-        "盾牌" to 4 -> "气血+120"
-        "盾牌" to 6 -> "暴率+4%"
-        "头盔" to 2 -> "暴率+2%"
-        "头盔" to 4 -> "身法+4%"
-        "头盔" to 6 -> "暴伤+18%"
-        else -> ""
+    private fun setFamily(item: EquipmentItem): String = when {
+        item.category.contains("玄铁") || item.category.contains("玄武") -> "玄铁"
+        item.category.contains("游龙") || item.category.contains("龙纹") -> "游龙"
+        item.category.contains("夜行") || item.category.contains("袖里") || item.category.contains("踏云") -> "夜行"
+        item.category.contains("青") || item.category.contains("金丝") || item.category.contains("玉") -> "青玉"
+        item.category.contains("虎") || item.category.contains("狮") || item.category.contains("开山") || item.category.contains("镇岳") -> "猛威"
+        else -> item.category.take(2)
+    }
+
+    private fun setBonusText(family: String, pieces: Int): String = when (family to pieces) {
+        "玄铁" to 2 -> "防御+18"
+        "玄铁" to 4 -> "气血+160"
+        "游龙" to 2 -> "身法+4%"
+        "游龙" to 4 -> "暴伤+16%"
+        "夜行" to 2 -> "暴率+3%"
+        "夜行" to 4 -> "吸血+3%"
+        "青玉" to 2 -> "气血+90"
+        "青玉" to 4 -> "防御+22"
+        "猛威" to 2 -> "攻击+16"
+        "猛威" to 4 -> "暴率+4%"
+        family to 6 -> "吸血+4% 暴伤+22%"
+        else -> if (pieces == 2) "攻击+16" else if (pieces == 4) "暴率+4%" else ""
     }
 
     fun parseInventory(): List<EquipmentItem> {
@@ -202,7 +276,13 @@ class GameEngine(private val context: Context) {
         val r = current.copy()
         r.actionCounter++; r.runTime++
         _player.value = _player.value.copy(playtime = _player.value.playtime + 1)
-        val types = mutableListOf("blessing","curse","treasure","enemy","enemy","route","merchant","healer","manual","nothing","nothing","monarch")
+        val types = mutableListOf(
+            "enemy", "enemy", "enemy", "enemy",
+            "nothing", "nothing", "nothing", "nothing", "nothing",
+            "treasure", "route",
+            "merchant", "healer", "manual",
+            "blessing", "curse", "monarch"
+        )
         if (r.actionCounter > 2 && r.actionCounter < 6) types.add("nextroom")
         else if (r.actionCounter > 5) { processEvent(r, "nextroom"); _realm.value = r; return }
         processEvent(r, types.random())
@@ -270,11 +350,33 @@ class GameEngine(private val context: Context) {
                 if (r.room >= r.roomsPerFloor) addRealmLog("找到了通往下一处江湖据点的山门！护法守在门前。", listOf("进入", "无视"))
                 else addRealmLog("前方有一处江湖据点。", listOf("进入", "无视"))
             }
-            "treasure" -> addRealmLog("发现一间藏宝室，里面有一个宝箱。", listOf("打开宝箱", "无视"))
-            "route" -> addRealmLog("前方出现三条岔路：左侧安静，右侧血腥，中路传来锁链声。", listOf("稳步前行", "冒险深入", "搜寻密道"))
-            "merchant" -> addRealmLog("一名蒙面游商坐在灯下，摊上摆着伤药和旧兵器。", listOf("买伤药", "买兵器", "离开"))
-            "healer" -> addRealmLog("破庙里有一位老医师，愿以银两换一线生机。", listOf("疗伤", "请教", "离开"))
-            "manual" -> addRealmLog("石匣中藏着三页残破功谱，只够参悟其中一页。", listOf("刀法", "身法", "铁骨"))
+            "treasure" -> {
+                if (Random.nextInt(100) >= 28) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
+                else addRealmLog("发现一间藏宝室，里面有一个宝箱。", listOf("打开宝箱", "无视"))
+            }
+            "route" -> {
+                if (Random.nextInt(100) >= 35) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
+                else addRealmLog("前方出现三条岔路：左侧安静，右侧血腥，中路传来锁链声。", listOf("稳步前行", "冒险深入", "搜寻密道"))
+            }
+            "merchant" -> {
+                if (Random.nextInt(100) >= 22) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
+                else {
+                    val medCost = 120L * r.floor
+                    val weaponCost = 220L * r.floor
+                    addRealmLog("一名蒙面游商坐在灯下，伤药需${medCost}两，旧兵器需${weaponCost}两。", listOf("买伤药(${medCost}两)", "买兵器(${weaponCost}两)", "离开"))
+                }
+            }
+            "healer" -> {
+                if (Random.nextInt(100) >= 18) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
+                else {
+                    val cost = 80L * r.floor
+                    addRealmLog("破庙里有一位老医师：疗伤${cost}两，请教可提升少量防御。", listOf("疗伤(${cost}两)", "请教(防御+1%)", "离开"))
+                }
+            }
+            "manual" -> {
+                if (Random.nextInt(100) >= 14) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
+                else addRealmLog("石匣中藏着三页残破功谱，只够参悟其中一页。", listOf("刀法(攻击+3%)", "身法(身法+2%)", "铁骨(气血+4% 防御+2%)"))
+            }
             "nothing" -> { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
             "enemy" -> { generateEnemy(); addRealmLog("遭遇【${_combatState.value?.enemyName}】！", listOf("迎战", "逃跑")) }
             "blessing" -> {
@@ -304,6 +406,7 @@ class GameEngine(private val context: Context) {
     }
 
     fun chooseOption(idx: Int) {
+        _eventPrompt.value = null
         val r = _realm.value.copy()
         val eventBefore = r.currentEvent
         when (r.currentEvent) {
@@ -352,6 +455,15 @@ class GameEngine(private val context: Context) {
             "room_gate" -> { if (idx == 0) roomTransition() else { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" } }
             "guardian_gate" -> { if (idx == 0) guardianBattle() else { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" } }
             "monarch" -> { if (idx == 0) specialBossBattle() else { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" } }
+            "floor_clear" -> {
+                if (idx == 0) advanceFloor()
+                else {
+                    addRealmLog("你决定暂留${currentAreaName()}，继续搜寻线索和战利品。")
+                    r.isEventActive = false
+                    r.currentEvent = ""
+                    r.isExploring = true
+                }
+            }
             else -> { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" }
         }
         val now = _realm.value
@@ -486,9 +598,30 @@ class GameEngine(private val context: Context) {
         }
     }
 
-    private fun guardianBattle() { incrementRoom(); generateEnemy("guardian"); startCombat("guardian"); addCombatLog("江湖护法【${_combatState.value?.enemyName}】挡住了去路！"); addRealmLog("进入了下一处据点。") }
+    private fun guardianBattle() { generateEnemy("guardian"); startCombat("guardian"); addCombatLog("江湖守卫【${_combatState.value?.enemyName}】挡住了通往下一层的路！") }
     private fun specialBossBattle() { generateEnemy("sboss"); startCombat("boss"); addCombatLog("武林至尊【${_combatState.value?.enemyName}】苏醒！"); addRealmLog("武林至尊【${_combatState.value?.enemyName}】苏醒！") }
     private fun ignoreEvent() { soundManager.playSfx("wood_confirm"); addRealmLog("选择无视，继续前行。") }
+
+    private fun advanceFloor() {
+        val r = _realm.value.copy()
+        val oldFloor = r.floor
+        r.floor++
+        r.room = 1
+        r.currentKills = 0
+        r.actionCounter = 0
+        r.isEventActive = false
+        r.currentEvent = ""
+        r.isExploring = true
+        _realm.value = r
+        addRealmLog("进入【${currentAreaName(r.floor)}】。主线继续推进。")
+        if ((r.floor - 1) / 5 != (oldFloor - 1) / 5) {
+            _storyDialogue.value = chapterStory(((r.floor - 1) / 5) + 1)
+        } else {
+            storyBeatForFloor(r.floor)
+        }
+        saveGame()
+    }
+
     private fun incrementRoom() {
         val r = _realm.value.copy()
         val oldFloor = r.floor
@@ -512,7 +645,11 @@ class GameEngine(private val context: Context) {
             89 -> "你终于明白，暗牢不是囚牢，而是一座筛选江湖继承者的旧阵。"
             else -> null
         }
-        if (msg != null) addRealmLog("剧情：$msg")
+        if (msg != null) _storyDialogue.value = msg
+    }
+
+    fun dismissStoryDialogue() {
+        _storyDialogue.value = null
     }
 
     // ===== Enemy Generation =====
@@ -585,6 +722,7 @@ class GameEngine(private val context: Context) {
 
     // ===== Combat =====
     fun startCombat(bgmType:String){
+        _eventPrompt.value = null
         val p=_player.value
         _combatState.value = _combatState.value?.copy(combatId = nextCombatId++)
         _player.value = p.copy(inCombat = true)
@@ -712,7 +850,14 @@ class GameEngine(private val context: Context) {
         val p=_player.value; _player.value = p.copy(inCombat = false)
         if(p.skills.contains("RAMPAGER")){p.baseStats.atk-=p.tempStats.atk.toInt();p.tempStats.atk=0f}
         if(p.skills.contains("BLADE_DANCE")){p.baseStats.atkSpd-=p.tempStats.atkSpd;p.tempStats.atkSpd=0f}
-        calculateStats(); saveGame(); _realm.value = _realm.value.copy(isExploring = false, isEventActive = true, currentEvent = "combat_result")
+        calculateStats(); saveGame()
+        val cs = _combatState.value
+        if (victory && cs?.battleType == "guardian") {
+            _realm.value = _realm.value.copy(isExploring = false, isEventActive = true, currentEvent = "floor_clear")
+            _eventPrompt.value = EventPrompt("你击败了【${cs.enemyName}】，${currentAreaName()}的出口已经打开。是否前往下一层？", listOf("前往下一层", "留在本层"))
+        } else {
+            _realm.value = _realm.value.copy(isExploring = false, isEventActive = true, currentEvent = "combat_result")
+        }
     }
 
     fun dismissCombatResult() {
@@ -725,9 +870,27 @@ class GameEngine(private val context: Context) {
 
     fun returnAfterDeath() {
         _combatState.value = null
+        _eventPrompt.value = null
         _combatLog.value = emptyList()
         _player.value = _player.value.copy(inCombat = false)
-        _realm.value = _realm.value.copy(isExploring = false, isPaused = true, isEventActive = false, currentEvent = "")
+        val r = _realm.value.copy()
+        val oldArea = currentAreaName(r.floor)
+        if (r.floor > 1) r.floor--
+        r.room = 1
+        r.actionCounter = 0
+        r.currentKills = 0
+        r.isExploring = false
+        r.isPaused = true
+        r.isEventActive = false
+        r.currentEvent = ""
+        _realm.value = r
+        val advice = when {
+            _player.value.stats.hpMax < 800 -> "建议先在上一层搜集装备，并优先强化气血/防御装备。"
+            _player.value.stats.atk < 180 -> "建议提升攻击，或购买兵器后再挑战守卫。"
+            _player.value.stats.def < 100 -> "建议强化护甲、盾牌或请教老医师提升防御。"
+            else -> "建议留在当前区域多刷战利品，确认血量充足后再挑战。"
+        }
+        addRealmLog("你败退离开【${oldArea}】，退回【${currentAreaName(r.floor)}】整备。$advice")
         saveGame()
     }
 
@@ -817,9 +980,11 @@ class GameEngine(private val context: Context) {
 
         val equipTypeName = when {
             type.attr == EquipmentAttribute.DAMAGE -> "兵器"
-            type in listOf(EquipmentType.PLATE_ARMOR, EquipmentType.CHAIN_ARMOR, EquipmentType.LEATHER_ARMOR) -> "护甲"
-            type in listOf(EquipmentType.TOWER_SHIELD, EquipmentType.KITE_SHIELD, EquipmentType.BUCKLER) -> "盾牌"
-            else -> "头盔"
+            type in listOf(EquipmentType.PLATE_ARMOR, EquipmentType.CHAIN_ARMOR, EquipmentType.LEATHER_ARMOR, EquipmentType.SCALE_ARMOR, EquipmentType.ROBE_ARMOR, EquipmentType.VINE_ARMOR) -> "护甲"
+            type in listOf(EquipmentType.TOWER_SHIELD, EquipmentType.KITE_SHIELD, EquipmentType.BUCKLER, EquipmentType.LOTUS_SHIELD, EquipmentType.TIGER_SHIELD, EquipmentType.COPPER_SHIELD) -> "盾牌"
+            type in listOf(EquipmentType.GREAT_HELM, EquipmentType.HORNED_HELM, EquipmentType.BAMBOO_HAT, EquipmentType.JADE_CROWN, EquipmentType.IRON_MASK, EquipmentType.CLOTH_BAND) -> "头盔"
+            type in listOf(EquipmentType.CLOUD_BOOTS, EquipmentType.IRON_BOOTS, EquipmentType.WIND_BOOTS, EquipmentType.SHADOW_BOOTS, EquipmentType.RAIN_BOOTS, EquipmentType.MONK_SHOES) -> "鞋履"
+            else -> "饰品"
         }
         val equip=EquipmentItem(category=type.displayName,attribute=attr.name,type=equipTypeName,rarity=rarity.displayName,lvl=lvl,tier=tier,value=sellVal,stats=stats)
 
@@ -832,9 +997,19 @@ class GameEngine(private val context: Context) {
     // ===== Inventory ops =====
     fun equipItem(idx:Int):Boolean {
         val inv=parseInventory().toMutableList(); if(idx>=inv.size)return false
-        val equipped=parseEquipped().toMutableList(); if(equipped.size>=9){soundManager.playSfx("blocked");return false}
-        val item=inv.removeAt(idx); equipped.add(item)
+        val equipped=parseEquipped().toMutableList()
+        while (equipped.size < equipSlots.size) equipped.add(EquipmentItem())
+        if (equipped.size > equipSlots.size) {
+            inv.addAll(equipped.drop(equipSlots.size).filter { it.category.isNotBlank() })
+            equipped.subList(equipSlots.size, equipped.size).clear()
+        }
+        val item=inv.removeAt(idx)
+        val slotIndex = equipSlots.indexOf(item.type).takeIf { it >= 0 } ?: 0
+        val oldItem = equipped.getOrNull(slotIndex)
+        if (oldItem != null && oldItem.category.isNotBlank()) inv.add(oldItem)
+        equipped[slotIndex] = item
         _player.value=_player.value.copy(inventory=gson.toJson(inv),equipped=gson.toJson(equipped))
+        addRealmLog("已装备【${item.rarity}${item.category}】到${item.type}槽。" + if (oldItem != null && oldItem.category.isNotBlank()) "原装备已放回背包。" else "")
         soundManager.playSfx("equip_blade"); calculateStats(); saveGame(); return true
     }
     fun unequipItem(idx:Int):Boolean {
@@ -859,11 +1034,15 @@ class GameEngine(private val context: Context) {
     }
     fun unequipAll() { val eq=parseEquipped().toMutableList(); val inv=parseInventory().toMutableList(); inv.addAll(eq); _player.value=_player.value.copy(equipped="[]",inventory=gson.toJson(inv)); calculateStats(); saveGame() }
 
+    fun enhanceCost(item: EquipmentItem): Long = (item.lvl*180L+_realm.value.floor*60L).coerceAtLeast(120L)
+    fun reforgeCost(item: EquipmentItem): Long = (item.lvl*260L+_realm.value.floor*90L).coerceAtLeast(180L)
+
     fun enhanceEquipped(idx:Int):Boolean {
         val equipped=parseEquipped().toMutableList(); if(idx>=equipped.size)return false
         val p=_player.value.copy()
         val item=equipped[idx]
-        val cost=(item.lvl*180L+_realm.value.floor*60L).coerceAtLeast(120L)
+        if (item.category.isBlank()) return false
+        val cost=enhanceCost(item)
         if(p.gold<cost){addRealmLog("银两不足，无法强化装备。");soundManager.playSfx("blocked");return false}
         p.gold-=cost
         val enhanced=item.copy(lvl=item.lvl+1, value=item.value+(cost/2).toInt(), stats=item.stats.map{sm->sm.mapValues{it.value*1.08f}})
@@ -877,7 +1056,8 @@ class GameEngine(private val context: Context) {
         val equipped=parseEquipped().toMutableList(); if(idx>=equipped.size)return false
         val p=_player.value.copy()
         val item=equipped[idx]
-        val cost=(item.lvl*260L+_realm.value.floor*90L).coerceAtLeast(180L)
+        if (item.category.isBlank()) return false
+        val cost=reforgeCost(item)
         if(p.gold<cost){addRealmLog("银两不足，无法重铸装备。");soundManager.playSfx("blocked");return false}
         p.gold-=cost
         val reforged=createEquipment().copy(category=item.category, attribute=item.attribute, type=item.type, rarity=item.rarity, lvl=item.lvl, tier=item.tier, value=item.value)
@@ -894,6 +1074,7 @@ class GameEngine(private val context: Context) {
         val l=_realmLog.value.toMutableList()
         l.add(if(choices.isNotEmpty())"$msg\n[选项:${choices.joinToString("|")}]" else msg)
         if(l.size>50)l.removeAt(0); _realmLog.value=l
+        if (choices.isNotEmpty()) _eventPrompt.value = EventPrompt(msg, choices)
     }
 
     private fun formatTime(s:Int)=String.format("%02d:%02d",s/60,s%60)
@@ -923,6 +1104,7 @@ class GameEngine(private val context: Context) {
             _player.value = loadedPlayer
             _realm.value=gson.fromJson(rj,RealmState::class.java).copy(isExploring=false,isPaused=true,isEventActive=false,currentEvent="")
             _combatState.value = null
+            _eventPrompt.value = null
             _combatLog.value = emptyList()
             _availableUpgrades.value = emptyList()
             _showLevelUp.value = false
@@ -939,6 +1121,7 @@ class GameEngine(private val context: Context) {
         _player.value = PlayerEntity()
         _realm.value = RealmState()
         _combatState.value = null
+        _eventPrompt.value = null
         _combatLog.value = emptyList()
         _realmLog.value = emptyList()
         _availableUpgrades.value = emptyList()

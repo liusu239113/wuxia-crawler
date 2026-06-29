@@ -17,6 +17,7 @@ class SoundManager(context: Context) {
     private var bgmPlayer: MediaPlayer? = null
     private var currentBgmType: String? = null
     private var currentLoop: Boolean = true
+    private var isInForeground = true
     private var isMuted = MutableStateFlow(prefs.getBoolean("muted", false))
     private var bgmVolume = MutableStateFlow(prefs.getFloat("bgm_volume", 0.5f))
     private var sfxVolume = MutableStateFlow(prefs.getFloat("sfx_volume", 0.7f))
@@ -66,7 +67,7 @@ class SoundManager(context: Context) {
     fun playBgm(context: Context, type: String, loop: Boolean = true) {
         currentBgmType = type
         currentLoop = loop
-        if (isMuted.value) return
+        if (isMuted.value || !isInForeground) return
         stopBgm(keepCurrent = true)
         val path = when (type) {
             "jianghu", "dungeon" -> "bgm/jianghu_secret_realm.ogg"
@@ -109,7 +110,17 @@ class SoundManager(context: Context) {
         isMuted.value = !isMuted.value
         prefs.edit().putBoolean("muted", isMuted.value).apply()
         if (isMuted.value) stopBgm(keepCurrent = true)
-        else currentBgmType?.let { playBgm(appContext, it, currentLoop) }
+        else if (isInForeground) currentBgmType?.let { playBgm(appContext, it, currentLoop) }
+    }
+
+    fun onEnterForeground() {
+        isInForeground = true
+        if (!isMuted.value) currentBgmType?.let { playBgm(appContext, it, currentLoop) }
+    }
+
+    fun onEnterBackground() {
+        isInForeground = false
+        stopBgm(keepCurrent = true)
     }
 
     fun setBgmVolume(value: Float) {
