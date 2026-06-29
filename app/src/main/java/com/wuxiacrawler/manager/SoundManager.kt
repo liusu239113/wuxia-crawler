@@ -11,14 +11,19 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class SoundManager(context: Context) {
     private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences("sound_settings", Context.MODE_PRIVATE)
     private val soundPool: SoundPool
     private val sfxMap = mutableMapOf<String, Int>()
     private var bgmPlayer: MediaPlayer? = null
     private var currentBgmType: String? = null
     private var currentLoop: Boolean = true
-    private var isMuted = MutableStateFlow(false)
+    private var isMuted = MutableStateFlow(prefs.getBoolean("muted", false))
+    private var bgmVolume = MutableStateFlow(prefs.getFloat("bgm_volume", 0.5f))
+    private var sfxVolume = MutableStateFlow(prefs.getFloat("sfx_volume", 0.7f))
 
     val muted: StateFlow<Boolean> = isMuted.asStateFlow()
+    val bgmLevel: StateFlow<Float> = bgmVolume.asStateFlow()
+    val sfxLevel: StateFlow<Float> = sfxVolume.asStateFlow()
 
     init {
         val attrs = AudioAttributes.Builder()
@@ -55,7 +60,7 @@ class SoundManager(context: Context) {
 
     fun playSfx(name: String) {
         if (isMuted.value) return
-        sfxMap[name]?.let { soundPool.play(it, 0.7f, 0.7f, 1, 0, 1f) }
+        sfxMap[name]?.let { soundPool.play(it, sfxVolume.value, sfxVolume.value, 1, 0, 1f) }
     }
 
     fun playBgm(context: Context, type: String, loop: Boolean = true) {
@@ -80,7 +85,7 @@ class SoundManager(context: Context) {
             bgmPlayer = MediaPlayer().apply {
                 setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
                 isLooping = loop
-                setVolume(0.5f, 0.5f)
+                setVolume(bgmVolume.value, bgmVolume.value)
                 prepare()
                 start()
             }
@@ -102,8 +107,20 @@ class SoundManager(context: Context) {
 
     fun toggleMute() {
         isMuted.value = !isMuted.value
+        prefs.edit().putBoolean("muted", isMuted.value).apply()
         if (isMuted.value) stopBgm(keepCurrent = true)
         else currentBgmType?.let { playBgm(appContext, it, currentLoop) }
+    }
+
+    fun setBgmVolume(value: Float) {
+        bgmVolume.value = value.coerceIn(0f, 1f)
+        prefs.edit().putFloat("bgm_volume", bgmVolume.value).apply()
+        bgmPlayer?.setVolume(bgmVolume.value, bgmVolume.value)
+    }
+
+    fun setSfxVolume(value: Float) {
+        sfxVolume.value = value.coerceIn(0f, 1f)
+        prefs.edit().putFloat("sfx_volume", sfxVolume.value).apply()
     }
 
     fun release() {

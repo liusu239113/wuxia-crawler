@@ -19,6 +19,9 @@ data class ExpInfo(
 
 data class PlayerEntity(
     var name: String = "无名侠客",
+    var gender: String = "male",
+    var portrait: String = "characters/hero_male.png",
+    var sect: String = "WANDERER",
     var realm: String = "NONE",
     var lvl: Int = 1,
     var kills: Int = 0,
@@ -31,7 +34,9 @@ data class PlayerEntity(
     // 等级奖励属性（百分比）
     var bonusStats: BonusStats = BonusStats(),
     // 装备加成属性
-    var equippedStats: PlayerStats = PlayerStats(0, 0, 0, 0, 0f, 0f, 0f),
+    var equippedStats: PlayerStats = PlayerStats(0, 0, 0, 0, 0f, 0f, 0f, 0f),
+    // 套装加成属性
+    var setBonusStats: PlayerStats = PlayerStats(0, 0, 0, 0, 0f, 0f, 0f, 0f),
     // 当前最终属性
     var stats: PlayerStats = PlayerStats(),
     // 临时buff（嗜战/影舞步）
@@ -48,6 +53,7 @@ data class PlayerEntity(
     var skills: String = "",
     var inCombat: Boolean = false,
     var isAllocated: Boolean = false,
+    var prologueSeen: Boolean = false,
 
     // 祝福等级
     var blessing: Int = 1
@@ -66,6 +72,8 @@ data class EquipmentItem(
 
 data class CombatState(
     var combatId: Int = 0,
+    var battleType: String = "normal",
+    var bossPhase: Int = 1,
     var enemyName: String = "",
     var enemyLvl: Int = 1,
     var enemyArchetype: String = "",

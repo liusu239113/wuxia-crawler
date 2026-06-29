@@ -65,41 +65,53 @@ class GameEngine(private val context: Context) {
     private var nextCombatId = 1
 
     // ===== Character Creation =====
-    fun createCharacter(name: String, hpAlloc: Int, atkAlloc: Int, defAlloc: Int, spdAlloc: Int, skill: MartialSkill) {
+    fun createCharacter(name: String, gender: String, hpAlloc: Int, atkAlloc: Int, defAlloc: Int, spdAlloc: Int, skill: MartialSkill, sect: MartialSect) {
         val p = _player.value.copy()
         p.name = name
+        p.gender = gender
+        p.portrait = if (gender == "female") "characters/hero_female.png" else "characters/hero_male.png"
+        p.sect = sect.name
         p.baseStats = PlayerStats(hp=50*hpAlloc, hpMax=50*hpAlloc, atk=10*atkAlloc, def=10*defAlloc, atkSpd=0.4f+0.02f*spdAlloc)
         p.skills = skill.name; p.isAllocated = true
-        calculateStats(); p.stats.hp = p.stats.hpMax
-        _player.value = p; saveGame()
+        _player.value = p
+        calculateStats()
+        val created = _player.value.copy()
+        created.stats.hp = created.stats.hpMax
+        _player.value = created
+        saveGame()
     }
 
     // ===== Stats =====
     fun calculateStats() {
         val p = _player.value
+        val oldHp = p.stats.hp
         val realm = CultivationRealm.entries.find { it.name == p.realm } ?: CultivationRealm.NONE
+        val sect = MartialSect.entries.find { it.name == p.sect } ?: MartialSect.WANDERER
+        val equippedItems = parseEquipped()
         p.equippedStats = PlayerStats(0,0,0,0,0f,0f,0f,0f)
-        for (item in parseEquipped()) for (sm in item.stats) for ((k,v) in sm) {
+        p.setBonusStats = PlayerStats(0,0,0,0,0f,0f,0f,0f)
+        for (item in equippedItems) for (sm in item.stats) for ((k,v) in sm) {
             when(k) {
                 "hp"->p.equippedStats.hpMax+=v.toInt(); "atk"->p.equippedStats.atk+=v.toInt()
                 "def"->p.equippedStats.def+=v.toInt(); "atkSpd"->p.equippedStats.atkSpd+=v
                 "vamp"->p.equippedStats.vamp+=v; "critRate"->p.equippedStats.critRate+=v; "critDmg"->p.equippedStats.critDmg+=v
             }
         }
+        applySetBonuses(equippedItems, p.setBonusStats)
         p.stats = PlayerStats(
             hp=0,
-            hpMax=(((p.baseStats.hpMax*(1f+p.bonusStats.hp/100f)).toInt()*(1f+realm.hpBonus)).toInt()+p.equippedStats.hpMax).coerceAtLeast(1),
-            atk=(((p.baseStats.atk*(1f+p.bonusStats.atk/100f)).toInt()*(1f+realm.atkBonus)).toInt()+p.equippedStats.atk+p.tempStats.atk.toInt()).coerceAtLeast(1),
-            def=(((p.baseStats.def*(1f+p.bonusStats.def/100f)).toInt()*(1f+realm.defBonus)).toInt()+p.equippedStats.def).coerceAtLeast(0),
-            atkSpd=(p.baseStats.atkSpd*(1f+p.bonusStats.atkSpd/100f)+p.equippedStats.atkSpd/100f+p.tempStats.atkSpd).coerceAtMost(2.5f),
-            vamp=p.bonusStats.vamp+p.equippedStats.vamp,
-            critRate=p.bonusStats.critRate+p.equippedStats.critRate,
-            critDmg=50f+p.bonusStats.critDmg+p.equippedStats.critDmg
+            hpMax=(((p.baseStats.hpMax*(1f+p.bonusStats.hp/100f+sect.hpBonus)).toInt()*(1f+realm.hpBonus)).toInt()+p.equippedStats.hpMax+p.setBonusStats.hpMax).coerceAtLeast(1),
+            atk=(((p.baseStats.atk*(1f+p.bonusStats.atk/100f+sect.atkBonus)).toInt()*(1f+realm.atkBonus)).toInt()+p.equippedStats.atk+p.setBonusStats.atk+p.tempStats.atk.toInt()).coerceAtLeast(1),
+            def=(((p.baseStats.def*(1f+p.bonusStats.def/100f+sect.defBonus)).toInt()*(1f+realm.defBonus)).toInt()+p.equippedStats.def+p.setBonusStats.def).coerceAtLeast(0),
+            atkSpd=(p.baseStats.atkSpd*(1f+p.bonusStats.atkSpd/100f+sect.atkSpdBonus)+p.equippedStats.atkSpd/100f+p.setBonusStats.atkSpd/100f+p.tempStats.atkSpd).coerceAtMost(2.5f),
+            vamp=p.bonusStats.vamp+p.equippedStats.vamp+p.setBonusStats.vamp+sect.vampBonus,
+            critRate=p.bonusStats.critRate+p.equippedStats.critRate+p.setBonusStats.critRate+sect.critRateBonus,
+            critDmg=50f+p.bonusStats.critDmg+p.equippedStats.critDmg+p.setBonusStats.critDmg
         )
         if (p.skills.contains("DEVASTATOR")) p.stats.atk = (p.stats.atk*1.3f).toInt()
         if (p.skills.contains("BLOODTHIRST")) p.stats.vamp += 5f
         if (p.skills.contains("PRECISION")) p.stats.critRate += 8f
-        p.stats.hp = p.stats.hpMax
+        p.stats.hp = oldHp.coerceIn(1, p.stats.hpMax)
         p.stats.hpPercent = (p.stats.hp.toFloat()/p.stats.hpMax*100f)
         _player.value = p.copy()
     }
@@ -108,13 +120,80 @@ class GameEngine(private val context: Context) {
         val j = _player.value.equipped; if (j.isBlank()||j=="[]") return emptyList()
         return try { gson.fromJson(j, object: TypeToken<List<EquipmentItem>>(){}.type) } catch (_:Exception) { emptyList() }
     }
+    private fun applySetBonuses(equippedItems: List<EquipmentItem>, bonus: PlayerStats) {
+        equippedItems.groupingBy { it.type }.eachCount().forEach { (type, count) ->
+            if (count >= 2) {
+                when (type) {
+                    "兵器" -> bonus.atk += 20
+                    "护甲" -> bonus.hpMax += 80
+                    "盾牌" -> bonus.def += 14
+                    "头盔" -> bonus.critRate += 2f
+                }
+            }
+            if (count >= 4) {
+                when (type) {
+                    "兵器" -> bonus.critDmg += 12f
+                    "护甲" -> bonus.def += 20
+                    "盾牌" -> bonus.hpMax += 120
+                    "头盔" -> bonus.atkSpd += 4f
+                }
+            }
+            if (count >= 6) {
+                when (type) {
+                    "兵器" -> bonus.vamp += 3f
+                    "护甲" -> bonus.vamp += 2f
+                    "盾牌" -> bonus.critRate += 4f
+                    "头盔" -> bonus.critDmg += 18f
+                }
+            }
+        }
+    }
+
+    fun activeSetBonusDescriptions(): List<String> {
+        return parseEquipped().groupingBy { it.type }.eachCount().flatMap { (type, count) ->
+            val lines = mutableListOf<String>()
+            if (count >= 2) lines.add("$type 2件：${setBonusText(type, 2)}")
+            if (count >= 4) lines.add("$type 4件：${setBonusText(type, 4)}")
+            if (count >= 6) lines.add("$type 6件：${setBonusText(type, 6)}")
+            lines
+        }
+    }
+
+    private fun setBonusText(type: String, pieces: Int): String = when (type to pieces) {
+        "兵器" to 2 -> "攻击+20"
+        "兵器" to 4 -> "暴伤+12%"
+        "兵器" to 6 -> "吸血+3%"
+        "护甲" to 2 -> "气血+80"
+        "护甲" to 4 -> "防御+20"
+        "护甲" to 6 -> "吸血+2%"
+        "盾牌" to 2 -> "防御+14"
+        "盾牌" to 4 -> "气血+120"
+        "盾牌" to 6 -> "暴率+4%"
+        "头盔" to 2 -> "暴率+2%"
+        "头盔" to 4 -> "身法+4%"
+        "头盔" to 6 -> "暴伤+18%"
+        else -> ""
+    }
+
     fun parseInventory(): List<EquipmentItem> {
         val j = _player.value.inventory; if (j.isBlank()||j=="[]") return emptyList()
         return try { gson.fromJson(j, object: TypeToken<List<EquipmentItem>>(){}.type) } catch (_:Exception) { emptyList() }
     }
 
-    // ===== 江湖秘境 =====
-    fun startExploring() { val r = _realm.value.copy(isPaused = false, isExploring = true); _realm.value = r; soundManager.playBgm(context,"jianghu"); soundManager.playSfx("gong_start") }
+    // ===== 江湖历练 =====
+    fun startExploring() {
+        val current = _realm.value
+        val shouldClearEvent = current.currentEvent == "combat_result" || current.currentEvent.isBlank()
+        val r = current.copy(
+            isPaused = false,
+            isExploring = true,
+            isEventActive = if (shouldClearEvent) false else current.isEventActive,
+            currentEvent = if (shouldClearEvent) "" else current.currentEvent
+        )
+        _realm.value = r
+        if (_combatState.value == null) soundManager.playBgm(context,"jianghu")
+        soundManager.playSfx("gong_start")
+    }
     fun pauseExploring() { val r = _realm.value.copy(isPaused = true, isExploring = false); _realm.value = r; soundManager.stopBgm(); soundManager.playSfx("bell_pause") }
 
     fun tickRealm() {
@@ -122,7 +201,8 @@ class GameEngine(private val context: Context) {
         if (!current.isExploring || current.isEventActive) return
         val r = current.copy()
         r.actionCounter++; r.runTime++
-        val types = mutableListOf("blessing","curse","treasure","enemy","enemy","nothing","nothing","nothing","nothing","monarch")
+        _player.value = _player.value.copy(playtime = _player.value.playtime + 1)
+        val types = mutableListOf("blessing","curse","treasure","enemy","enemy","route","merchant","healer","manual","nothing","nothing","monarch")
         if (r.actionCounter > 2 && r.actionCounter < 6) types.add("nextroom")
         else if (r.actionCounter > 5) { processEvent(r, "nextroom"); _realm.value = r; return }
         processEvent(r, types.random())
@@ -136,7 +216,7 @@ class GameEngine(private val context: Context) {
         "荒原狼卫" to "wolf",
         "黑风狼卫" to "wolf_black",
         "寒岭狼卫" to "wolf_winter",
-        "化血妖人" to "slime",
+        "化血药人" to "slime",
         "铁布衫石奴" to "slime",
         "明王护法" to "slime_angel",
         "金甲剑侍" to "slime_knight",
@@ -144,40 +224,40 @@ class GameEngine(private val context: Context) {
         "蛮寨剑客" to "orc_swordsmaster",
         "蛮寨斧客" to "orc_axe",
         "蛮寨弓手" to "orc_archer",
-        "毒窟蛛奴" to "spider",
-        "赤炼蛛奴" to "spider_red",
-        "碧毒蛛奴" to "spider_green",
-        "白骨弩手" to "skeleton_archer",
-        "白骨剑客" to "skeleton_swordsmaster",
-        "白骨铁骑" to "skeleton_knight",
-        "白骨刀客" to "skeleton_warrior",
-        "白骨影刺" to "skeleton_samurai",
-        "水寨骷匪" to "skeleton_pirate",
+        "毒窟刀奴" to "spider",
+        "赤练刀客" to "spider_red",
+        "碧毒刀奴" to "spider_green",
+        "暗弩门徒" to "skeleton_archer",
+        "白衣剑客" to "skeleton_swordsmaster",
+        "黑甲枪卫" to "skeleton_knight",
+        "白衣刀客" to "skeleton_warrior",
+        "夜行刺客" to "skeleton_samurai",
+        "水寨刀匪" to "skeleton_pirate",
         "机关宝匣" to "mimic",
         "幻阵假门" to "mimic_door",
         "霸刀·黑寨统领" to "goblin_boss",
-        "骨皇·白骨门主" to "skeleton_boss",
-        "赤炼·蛛王" to "spider_fire",
-        "不死·骸骨宗师" to "berthelot",
-        "化血·坛主" to "slime_boss",
-        "天蟹·星宿护法" to "zodiac_cancer",
+        "枯木·白衣门主" to "skeleton_boss",
+        "赤练·刀堂主" to "spider_fire",
+        "不老·枯木宗师" to "berthelot",
+        "化血·药坛主" to "slime_boss",
+        "天钩·星宿护法" to "zodiac_cancer",
         "明王·金身罗汉" to "alfadriel",
         "龙骑·天摩尊者" to "tiamat",
         "无名·堕落剑王" to "fallen_king",
-        "白羊·星宿护法" to "zodiac_aries",
-        "蚁后·千丝夫人" to "ant_queen",
-        "机括·机关蛛王" to "spider_boss",
-        "弑神·天狼煞" to "wolf_boss",
-        "冥犬·黄泉猎犬" to "hellhound",
-        "三首·地狱獒王" to "cerberus_ptolemaios",
-        "镇狱·魔尊" to "behemoth",
-        "龙庭·煞罗王" to "zalaras",
-        "幽冥·尸王" to "skeleton_dragon",
-        "熔岩·火云老祖" to "firelord",
+        "白虹·星宿护法" to "zodiac_aries",
+        "千丝·夫人" to "ant_queen",
+        "机括·机关堂主" to "spider_boss",
+        "天狼·黑风寨主" to "wolf_boss",
+        "铁犬·猎犬使" to "hellhound",
+        "三刀·獒王寨主" to "cerberus_ptolemaios",
+        "镇山·铁掌帮主" to "behemoth",
+        "龙门·煞罗堂主" to "zalaras",
+        "黑袍·风雷长老" to "skeleton_dragon",
+        "火云·赤袍老祖" to "firelord",
         "冰魄·寒霜宫主" to "icemaiden",
         "索命·阎罗判官" to "thanatos",
         "暗影·夺魂使" to "da-reaper",
-        "蛛龙·盘丝老祖" to "spider_dragon",
+        "盘丝·蛛索长老" to "spider_dragon",
         "血煞·疯魔刀圣" to "bm-feral"
     )
 
@@ -187,10 +267,14 @@ class GameEngine(private val context: Context) {
         when(event) {
             "nextroom" -> {
                 r.currentEvent = if (r.room >= r.roomsPerFloor) "guardian_gate" else "room_gate"
-                if (r.room >= r.roomsPerFloor) addRealmLog("找到了通往下一层的秘境之门！护法守在门前。", listOf("进入", "无视"))
-                else addRealmLog("前方有一扇秘境之门。", listOf("进入", "无视"))
+                if (r.room >= r.roomsPerFloor) addRealmLog("找到了通往下一处江湖据点的山门！护法守在门前。", listOf("进入", "无视"))
+                else addRealmLog("前方有一处江湖据点。", listOf("进入", "无视"))
             }
             "treasure" -> addRealmLog("发现一间藏宝室，里面有一个宝箱。", listOf("打开宝箱", "无视"))
+            "route" -> addRealmLog("前方出现三条岔路：左侧安静，右侧血腥，中路传来锁链声。", listOf("稳步前行", "冒险深入", "搜寻密道"))
+            "merchant" -> addRealmLog("一名蒙面游商坐在灯下，摊上摆着伤药和旧兵器。", listOf("买伤药", "买兵器", "离开"))
+            "healer" -> addRealmLog("破庙里有一位老医师，愿以银两换一线生机。", listOf("疗伤", "请教", "离开"))
+            "manual" -> addRealmLog("石匣中藏着三页残破功谱，只够参悟其中一页。", listOf("刀法", "身法", "铁骨"))
             "nothing" -> { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
             "enemy" -> { generateEnemy(); addRealmLog("遭遇【${_combatState.value?.enemyName}】！", listOf("迎战", "逃跑")) }
             "blessing" -> {
@@ -198,14 +282,14 @@ class GameEngine(private val context: Context) {
                     val p = _player.value
                     if (p.blessing < 1) p.blessing = 1
                     val cost = (p.blessing * (500.0 * (p.blessing * 0.5)) + 750).toLong()
-                    addRealmLog("发现悟道碑文！供奉${cost}两白银可获得祝福。（祝福Lv.${p.blessing}）", listOf("供奉", "无视"))
+                    addRealmLog("发现悟道碑文！供奉${cost}两白银可获得祝福。（祝福${p.blessing}重）", listOf("供奉", "无视"))
                 } else { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
             }
             "curse" -> {
                 if (Random.nextInt(3) == 1) {
                     val clvl = ((r.enemyScaling - 1f) * 10).toInt()
                     val cost = (clvl * (10000.0 * (clvl * 0.5)) + 5000).toLong()
-                    addRealmLog("发现魔道祭坛！献祭${cost}两白银可强化魔物。（魔染Lv.${clvl}）", listOf("献祭", "无视"))
+                    addRealmLog("发现黑市悬赏！缴纳${cost}两白银可提升江湖声望。（声望${clvl}重）", listOf("缴纳", "无视"))
                 } else { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
             }
             "monarch" -> {
@@ -216,7 +300,7 @@ class GameEngine(private val context: Context) {
     }
 
     private fun nothingEvent() {
-        addRealmLog(listOf("四处探索，空无一物……","发现一个空的宝箱。","发现一具妖兽尸骸。","发现一具枯骨。","这片区域早已被人搜刮干净。").random())
+        addRealmLog(listOf("四处探索，空无一物……","发现一个空的宝箱。","发现一处废弃营地。","发现一柄断剑。","这片区域早已被人搜刮干净。").random())
     }
 
     fun chooseOption(idx: Int) {
@@ -235,6 +319,10 @@ class GameEngine(private val context: Context) {
                 }
             }
             "treasure" -> { if (idx == 0) chestEvent() else { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" } }
+            "route" -> { routeEvent(idx); r.isEventActive = false; r.currentEvent = "" }
+            "merchant" -> { merchantEvent(idx); r.isEventActive = false; r.currentEvent = "" }
+            "healer" -> { healerEvent(idx); r.isEventActive = false; r.currentEvent = "" }
+            "manual" -> { manualEvent(idx); r.isEventActive = false; r.currentEvent = "" }
             "blessing" -> {
                 if (idx == 0) {
                     val p = _player.value.copy()
@@ -254,7 +342,7 @@ class GameEngine(private val context: Context) {
                     else {
                         _player.value = _player.value.copy(gold = _player.value.gold - cost)
                         r.enemyScaling += 0.1f
-                        addRealmLog("魔物煞气加重，战利品品质提升。（魔染Lv.${clvl}→${clvl + 1}）")
+                        addRealmLog("江湖声望提升，战利品品质提升。（声望${clvl}重→${clvl + 1}重）")
                         soundManager.playSfx("qi_flow")
                     }
                 } else ignoreEvent()
@@ -266,7 +354,107 @@ class GameEngine(private val context: Context) {
             "monarch" -> { if (idx == 0) specialBossBattle() else { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" } }
             else -> { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" }
         }
-        if (!_player.value.inCombat && _realm.value.currentEvent == eventBefore) _realm.value = r
+        val now = _realm.value
+        if (!_player.value.inCombat && _combatState.value == null && now.currentEvent == eventBefore && now.currentEvent != "combat_result") _realm.value = r
+    }
+
+    private fun routeEvent(idx: Int) {
+        when (idx) {
+            0 -> {
+                addRealmLog("你选择稳步前行，避开了暗处机关。")
+                _realm.value = _realm.value.copy(actionCounter = 0)
+                soundManager.playSfx("wood_confirm")
+            }
+            1 -> {
+                addRealmLog("你踏入血腥岔路，危险更近，但战利品也更诱人。")
+                if (Random.nextBoolean()) {
+                    generateEnemy()
+                    startCombat("battle")
+                } else {
+                    createEquipPrint()
+                    saveGame()
+                }
+            }
+            2 -> {
+                addRealmLog("你沿墙搜寻密道，绕过一段暗牢，直接接近下一间石室。")
+                val r = _realm.value.copy()
+                r.room = (r.room + 1).coerceAtMost(r.roomsPerFloor)
+                r.actionCounter = 0
+                _realm.value = r.copy(isEventActive = false, currentEvent = "")
+                soundManager.playSfx("scroll_open")
+            }
+        }
+    }
+
+    private fun merchantEvent(idx: Int) {
+        val p = _player.value.copy()
+        when (idx) {
+            0 -> {
+                val cost = 120L * _realm.value.floor
+                if (p.gold < cost) { addRealmLog("银两不足，游商收起了伤药。"); soundManager.playSfx("blocked") }
+                else {
+                    p.gold -= cost
+                    p.stats.hp = (p.stats.hp + p.stats.hpMax * 35 / 100).coerceAtMost(p.stats.hpMax)
+                    _player.value = p
+                    addRealmLog("买下伤药，恢复三成半气血。")
+                    soundManager.playSfx("qi_flow")
+                    saveGame()
+                }
+            }
+            1 -> {
+                val cost = 220L * _realm.value.floor
+                if (p.gold < cost) { addRealmLog("银两不足，游商摇头不语。"); soundManager.playSfx("blocked") }
+                else {
+                    p.gold -= cost
+                    _player.value = p
+                    createEquipPrint()
+                    addRealmLog("游商递来一件旧兵器，说它曾随一位高手入牢。")
+                    soundManager.playSfx("equip_blade")
+                    saveGame()
+                }
+            }
+            else -> ignoreEvent()
+        }
+    }
+
+    private fun healerEvent(idx: Int) {
+        val p = _player.value.copy()
+        when (idx) {
+            0 -> {
+                val cost = 80L * _realm.value.floor
+                if (p.gold < cost) { addRealmLog("银两不足，老医师只留下一声叹息。"); soundManager.playSfx("blocked") }
+                else {
+                    p.gold -= cost
+                    p.stats.hp = p.stats.hpMax
+                    _player.value = p
+                    addRealmLog("老医师替你封住伤口，气血回满。")
+                    soundManager.playSfx("qi_flow")
+                    saveGame()
+                }
+            }
+            1 -> {
+                p.bonusStats.def += 1f
+                _player.value = p
+                calculateStats()
+                addRealmLog("老医师指点你运气护身，防御略有精进。")
+                soundManager.playSfx("realm_breakthrough")
+                saveGame()
+            }
+            else -> ignoreEvent()
+        }
+    }
+
+    private fun manualEvent(idx: Int) {
+        val p = _player.value.copy()
+        when (idx) {
+            0 -> { p.bonusStats.atk += 3f; addRealmLog("你参悟残页刀法，攻击提升。") }
+            1 -> { p.bonusStats.atkSpd += 2f; addRealmLog("你参悟残页身法，出手更快。") }
+            2 -> { p.bonusStats.hp += 4f; p.bonusStats.def += 2f; addRealmLog("你参悟铁骨心诀，气血与防御提升。") }
+        }
+        _player.value = p
+        calculateStats()
+        soundManager.playSfx("realm_breakthrough")
+        saveGame()
     }
 
     private fun chestEvent() {
@@ -286,7 +474,7 @@ class GameEngine(private val context: Context) {
         val s = mapOf("hp" to 10f,"atk" to 8f,"def" to 8f,"atkSpd" to 3f,"vamp" to 0.5f,"critRate" to 1f,"critDmg" to 6f)
         val (k,v) = s.entries.random()
         when(k){"hp"->p.bonusStats.hp+=v;"atk"->p.bonusStats.atk+=v;"def"->p.bonusStats.def+=v;"atkSpd"->p.bonusStats.atkSpd+=v;"vamp"->p.bonusStats.vamp+=v;"critRate"->p.bonusStats.critRate+=v;"critDmg"->p.bonusStats.critDmg+=v}
-        addRealmLog("祝福获得${k}+${v}%！（祝福Lv.${p.blessing}→${p.blessing+1}）"); p.blessing++
+        addRealmLog("祝福获得${k}+${v}%！（祝福${p.blessing}重→${p.blessing+1}重）"); p.blessing++
         calculateStats(); saveGame(); _player.value = p.copy()
     }
 
@@ -298,10 +486,34 @@ class GameEngine(private val context: Context) {
         }
     }
 
-    private fun guardianBattle() { incrementRoom(); generateEnemy("guardian"); startCombat("guardian"); addCombatLog("秘境护法【${_combatState.value?.enemyName}】挡住了去路！"); addRealmLog("进入了下一层。") }
+    private fun guardianBattle() { incrementRoom(); generateEnemy("guardian"); startCombat("guardian"); addCombatLog("江湖护法【${_combatState.value?.enemyName}】挡住了去路！"); addRealmLog("进入了下一处据点。") }
     private fun specialBossBattle() { generateEnemy("sboss"); startCombat("boss"); addCombatLog("武林至尊【${_combatState.value?.enemyName}】苏醒！"); addRealmLog("武林至尊【${_combatState.value?.enemyName}】苏醒！") }
     private fun ignoreEvent() { soundManager.playSfx("wood_confirm"); addRealmLog("选择无视，继续前行。") }
-    private fun incrementRoom() { val r = _realm.value.copy(); r.room++; r.actionCounter=0; if(r.room>r.roomsPerFloor){r.room=1;r.floor++}; _realm.value = r }
+    private fun incrementRoom() {
+        val r = _realm.value.copy()
+        val oldFloor = r.floor
+        r.room++
+        r.actionCounter=0
+        if(r.room>r.roomsPerFloor){r.room=1;r.floor++}
+        _realm.value = r
+        if (r.floor != oldFloor) storyBeatForFloor(r.floor)
+    }
+
+    private fun storyBeatForFloor(floor: Int) {
+        val msg = when (floor) {
+            2 -> "石壁上刻着半句残诗：入暗牢者，先失其名，再失其心。"
+            3 -> "你在牢门铜环上发现与身上断符相同的纹路，掌柜并未说谎。"
+            5 -> "暗处有人低声唤你的名字，可那声音不像活人。"
+            8 -> "一具旧甲旁压着血书：七派入牢，皆为一人所邀。"
+            13 -> "前方风声忽停，像有一位旧日高手正在等你赴约。"
+            21 -> "你听见掌柜的声音从墙后传来：别信你看到的门，暗牢会学人说话。"
+            34 -> "一枚完整牢符嵌在石台中央，符背刻着你的姓氏。"
+            55 -> "暗牢深处传来钟声，七大门派失踪的真相，似乎只差最后一扇门。"
+            89 -> "你终于明白，暗牢不是囚牢，而是一座筛选江湖继承者的旧阵。"
+            else -> null
+        }
+        if (msg != null) addRealmLog("剧情：$msg")
+    }
 
     // ===== Enemy Generation =====
     fun generateEnemy(condition: String = "") {
@@ -361,7 +573,12 @@ class GameEngine(private val context: Context) {
 
         _currentEnemySprite.value=spriteMap[name]?: "slime"
         val p=_player.value
-        _combatState.value=CombatState(enemyName=name,enemyLvl=lvl,enemyArchetype=arch.name,enemyHp=eHp,enemyHpMax=eHp,enemyAtk=eAtk,enemyDef=eDef,enemyAtkSpd=eSpd,enemyCritRate=eCr,enemyCritDmg=eCd,playerHp=p.stats.hp,playerHpMax=p.stats.hpMax,playerAtk=p.stats.atk,playerDef=p.stats.def,playerAtkSpd=p.stats.atkSpd,playerVamp=p.stats.vamp,playerCritRate=p.stats.critRate,playerCritDmg=p.stats.critDmg,expReward=expCalc.toInt(),goldReward=gold,hasDrop=drop)
+        val battleType = when (condition) {
+            "guardian" -> "guardian"
+            "sboss" -> "sboss"
+            else -> "normal"
+        }
+        _combatState.value=CombatState(battleType=battleType,enemyName=name,enemyLvl=lvl,enemyArchetype=arch.name,enemyHp=eHp,enemyHpMax=eHp,enemyAtk=eAtk,enemyDef=eDef,enemyAtkSpd=eSpd,enemyCritRate=eCr,enemyCritDmg=eCd,playerHp=p.stats.hp,playerHpMax=p.stats.hpMax,playerAtk=p.stats.atk,playerDef=p.stats.def,playerAtkSpd=p.stats.atkSpd,playerVamp=p.stats.vamp,playerCritRate=p.stats.critRate,playerCritDmg=p.stats.critDmg,expReward=expCalc.toInt(),goldReward=gold,hasDrop=drop)
     }
 
     private data class Quintuple(val a:String,val b:Int,val c:Int,val d:Int,val e:Float,val f:Float,val g:Float)
@@ -404,7 +621,7 @@ class GameEngine(private val context: Context) {
         cs.enemyHp=maxOf(0,cs.enemyHp-dmg.toInt()); cs.playerHp=minOf(cs.playerHpMax,cs.playerHp+ls)
         val cm=if(isCrit)"【暴击！】" else ""
         addCombatLog("${p.name}对${cs.enemyName}造成${dmg.toInt()}点${dType} $cm")
-        _dmgNumbers.value=_dmgNumbers.value+DmgNumber(dmg.toInt().toString(),isCrit); _enemyFlinch.value=true
+        _dmgNumbers.value=(_dmgNumbers.value+DmgNumber(dmg.toInt().toString(),isCrit)).takeLast(8); _enemyFlinch.value=true
         _combatState.value=cs.copy(); hpValidation()
         return cs.enemyHp>0&&cs.playerHp>0
     }
@@ -414,19 +631,61 @@ class GameEngine(private val context: Context) {
         soundManager.playSfx("sword_slash")
         var dmg=cs.enemyAtk*(cs.enemyAtk.toFloat()/(cs.enemyAtk+cs.playerDef)); dmg*=(0.9f+Random.nextFloat()*0.2f)
         if(Random.nextFloat()*100<cs.enemyCritRate)dmg=(dmg*(1f+cs.enemyCritDmg/100f)).toInt().toFloat() else dmg=dmg.toInt().toFloat()
+        if (cs.enemyLvl >= _realm.value.enemyLevelGap * _realm.value.floor && Random.nextInt(5) == 0) {
+            dmg *= 1.35f
+            addCombatLog("${cs.enemyName}施展破势重击！")
+            soundManager.playSfx("realm_breakthrough")
+        }
         if(p.skills.contains("PALADIN_HEART"))dmg=(dmg*0.75f).toInt().toFloat()
+        if (cs.bossPhase >= 2 && cs.battleType == "sboss" && Random.nextInt(4) == 0) {
+            dmg *= 1.45f
+            addCombatLog("${cs.enemyName}施展狂澜连斩！")
+            soundManager.playSfx("realm_breakthrough")
+        }
         cs.playerHp=maxOf(0,cs.playerHp-dmg.toInt())
+        if (cs.bossPhase >= 2 && cs.battleType == "guardian" && Random.nextInt(3) == 0) {
+            val shock = (cs.enemyDef * 0.35f).toInt().coerceAtLeast(1)
+            cs.playerHp = maxOf(0, cs.playerHp - shock)
+            addCombatLog("${cs.enemyName}以护体真气震伤${p.name}，追加${shock}点伤害")
+        }
         if(p.skills.contains("AEGIS_THORNS"))cs.enemyHp=maxOf(0,cs.enemyHp-(dmg*0.15f).toInt())
         addCombatLog("${cs.enemyName}对${p.name}造成${dmg.toInt()}点伤害")
+        soundManager.playSfx("blocked")
         _playerFlinch.value=true; p.stats.hp=cs.playerHp; _player.value = p.copy()
         _combatState.value=cs.copy(); hpValidation()
         return cs.enemyHp>0&&cs.playerHp>0
     }
 
+    private fun triggerBossPhaseTwo(cs: CombatState): Boolean {
+        if (cs.bossPhase >= 2 || cs.enemyHp <= 0 || cs.enemyHp > cs.enemyHpMax / 2) return false
+        if (cs.battleType != "guardian" && cs.battleType != "sboss") return false
+        cs.bossPhase = 2
+        cs.combatId = nextCombatId++
+        when (cs.battleType) {
+            "guardian" -> {
+                cs.enemyAtk = (cs.enemyAtk * 1.18f).toInt().coerceAtLeast(cs.enemyAtk + 1)
+                cs.enemyDef = (cs.enemyDef * 1.20f).toInt().coerceAtLeast(cs.enemyDef + 1)
+                cs.enemyCritRate += 4f
+                addCombatLog("${cs.enemyName}气势暴涨，进入二阶段：护体反击！")
+            }
+            "sboss" -> {
+                cs.enemyAtk = (cs.enemyAtk * 1.28f).toInt().coerceAtLeast(cs.enemyAtk + 1)
+                cs.enemyAtkSpd = (cs.enemyAtkSpd * 1.18f).coerceAtMost(2.5f)
+                cs.enemyCritRate += 6f
+                cs.enemyCritDmg += 18f
+                addCombatLog("${cs.enemyName}真气逆转，进入二阶段：狂澜连斩！")
+            }
+        }
+        soundManager.playSfx("realm_breakthrough")
+        _combatState.value = cs.copy()
+        return true
+    }
+
     fun hpValidation() {
         val cs=_combatState.value?:return; val p=_player.value
-        if(cs.playerHp<1){cs.playerHp=0;cs.playerDead=true;p.deaths++;addCombatLog("${p.name}身死道消……");endCombat()}
-        else if(cs.enemyHp<1){cs.enemyHp=0;cs.enemyDead=true;p.kills++; val r=_realm.value; r.currentKills++; _realm.value=r.copy();addCombatLog("${cs.enemyName}被击败！");addCombatLog("获得${cs.expReward}修为。");playerExpGain(cs.expReward);addCombatLog("获得${cs.goldReward}两白银。");p.gold+=cs.goldReward;p.stats.hp+=(p.stats.hpMax*20/100);if(cs.hasDrop)createEquipPrint();calculateStats();endCombat();
+        if(cs.playerHp<1){cs.playerHp=0;cs.playerDead=true;p.deaths++;addCombatLog("${p.name}败下阵来……");endCombat(false)}
+        else if(triggerBossPhaseTwo(cs)){cs.enemyHpPercent=(cs.enemyHp.toFloat()/cs.enemyHpMax*100f)}
+        else if(cs.enemyHp<1){cs.enemyHp=0;cs.enemyDead=true;p.kills++; val r=_realm.value; r.currentKills++; _realm.value=r.copy();addCombatLog("${cs.enemyName}被击败！");addCombatLog("获得${cs.expReward}阅历。");playerExpGain(cs.expReward);addCombatLog("获得${cs.goldReward}两白银。");p.gold+=cs.goldReward;p.stats.hp+=(p.stats.hpMax*8/100);if(cs.hasDrop)createEquipPrint();calculateStats();endCombat(true);
             val cr=CultivationRealm.entries.find{it.name==p.realm}?:CultivationRealm.NONE; val nr=CultivationRealm.entries.getOrNull(cr.ordinal+1)
             if(nr!=null&&p.lvl>=nr.level*10+10&&p.kills>=nr.level*5){_realmBreakthroughPending.value=true;_realmBreakthroughInfo.value=Pair(cr.displayName,nr.displayName)}
             if(p.exp.lvlGained>0){_showLevelUp.value=true;lvlupPopup()}
@@ -447,18 +706,34 @@ class GameEngine(private val context: Context) {
         calculateStats(); _player.value = p.copy()
     }
 
-    private fun endCombat() {
-        soundManager.stopBgm(); soundManager.playSfx("victory_chime"); val p=_player.value; _player.value = p.copy(inCombat = false)
+    private fun endCombat(victory: Boolean) {
+        soundManager.stopBgm()
+        soundManager.playSfx(if (victory) "victory_chime" else "decline")
+        val p=_player.value; _player.value = p.copy(inCombat = false)
         if(p.skills.contains("RAMPAGER")){p.baseStats.atk-=p.tempStats.atk.toInt();p.tempStats.atk=0f}
         if(p.skills.contains("BLADE_DANCE")){p.baseStats.atkSpd-=p.tempStats.atkSpd;p.tempStats.atkSpd=0f}
-        calculateStats(); saveGame(); _realm.value = _realm.value.copy(isEventActive = false, currentEvent = "")
+        calculateStats(); saveGame(); _realm.value = _realm.value.copy(isExploring = false, isEventActive = true, currentEvent = "combat_result")
     }
 
-    fun dismissCombatResult() { _combatState.value=null; if(!_realm.value.isPaused) { _realm.value = _realm.value.copy(isExploring = true); soundManager.playBgm(context, "jianghu") }; saveGame() }
+    fun dismissCombatResult() {
+        _combatState.value = null
+        val shouldExplore = !_realm.value.isPaused
+        _realm.value = _realm.value.copy(isExploring = shouldExplore, isEventActive = false, currentEvent = "")
+        if (shouldExplore) soundManager.playBgm(context, "jianghu")
+        saveGame()
+    }
+
+    fun returnAfterDeath() {
+        _combatState.value = null
+        _combatLog.value = emptyList()
+        _player.value = _player.value.copy(inCombat = false)
+        _realm.value = _realm.value.copy(isExploring = false, isPaused = true, isEventActive = false, currentEvent = "")
+        saveGame()
+    }
 
     private fun lvlupPopup() {
         soundManager.playSfx("realm_breakthrough"); val p=_player.value
-        addCombatLog("境界提升！（Lv.${p.lvl-p.exp.lvlGained}→Lv.${p.lvl}）")
+        addCombatLog("境界提升！（${MartialRealmDisplay.fromLevel(p.lvl-p.exp.lvlGained)}→${MartialRealmDisplay.fromLevel(p.lvl)}）")
         val percentages=mapOf("hp" to 10f,"atk" to 8f,"def" to 8f,"atkSpd" to 3f,"vamp" to 0.5f,"critRate" to 1f,"critDmg" to 6f)
         generateLvlStats(2,percentages)
     }
@@ -491,7 +766,7 @@ class GameEngine(private val context: Context) {
     fun confirmBreakthrough() {
         val nr=CultivationRealm.entries.find{it.displayName==_realmBreakthroughInfo.value?.second}?:return
         val p=_player.value; p.realm=nr.name; p.stats.hp=p.stats.hpMax
-        addRealmLog("🎉境界突破！踏入【${nr.displayName}】！"); soundManager.playSfx("realm_breakthrough"); calculateStats(); _player.value = p.copy(); saveGame()
+        addRealmLog("境界突破！踏入【${nr.displayName}】！"); soundManager.playSfx("realm_breakthrough"); calculateStats(); _player.value = p.copy(); saveGame()
         _realmBreakthroughPending.value=false; _realmBreakthroughInfo.value=null
     }
     fun dismissBreakthrough() { _realmBreakthroughPending.value=false; _realmBreakthroughInfo.value=null }
@@ -540,18 +815,24 @@ class GameEngine(private val context: Context) {
         }
         val sellVal=(totalVal*3f).toInt()
 
-        val equip=EquipmentItem(category=type.displayName,attribute=attr.name,type=when(type.attr){EquipmentAttribute.DAMAGE->"兵器";else->{if(type.displayName.contains("甲"))"护甲" else if(type.displayName.contains("盾"))"盾牌" else "头盔"}},rarity=rarity.displayName,lvl=lvl,tier=tier,value=sellVal,stats=stats)
+        val equipTypeName = when {
+            type.attr == EquipmentAttribute.DAMAGE -> "兵器"
+            type in listOf(EquipmentType.PLATE_ARMOR, EquipmentType.CHAIN_ARMOR, EquipmentType.LEATHER_ARMOR) -> "护甲"
+            type in listOf(EquipmentType.TOWER_SHIELD, EquipmentType.KITE_SHIELD, EquipmentType.BUCKLER) -> "盾牌"
+            else -> "头盔"
+        }
+        val equip=EquipmentItem(category=type.displayName,attribute=attr.name,type=equipTypeName,rarity=rarity.displayName,lvl=lvl,tier=tier,value=sellVal,stats=stats)
 
         val inv=parseInventory().toMutableList(); inv.add(equip); _player.value=_player.value.copy(inventory=gson.toJson(inv))
         return equip
     }
 
-    private fun equipmentIcon(cat:String)=when(cat){"青锋剑"->"🗡️";"开山斧"->"🪓";"镇岳锤"->"🔨";"袖里刃"->"🔪";"游龙鞭"->"⛓️";"月牙镰"->"🔱";"玄铁甲"->"🛡️";"金丝软甲"->"🛡️";"夜行衣"->"🦺";"玄武盾"->"🛡️";"雁翎盾"->"🛡️";"八卦盾"->"🛡️";"狮首盔"->"⛑️";"龙纹冠"->"👑";else->"📦"}
+    private fun equipmentIcon(cat:String)=when(cat){"青锋剑"->"剑";"开山斧"->"斧";"镇岳锤"->"锤";"袖里刃"->"刃";"游龙鞭"->"鞭";"月牙镰"->"镰";"玄铁甲"->"甲";"金丝软甲"->"甲";"夜行衣"->"衣";"玄武盾"->"盾";"雁翎盾"->"盾";"八卦盾"->"盾";"狮首盔"->"盔";"龙纹冠"->"冠";else->"物"}
 
     // ===== Inventory ops =====
     fun equipItem(idx:Int):Boolean {
         val inv=parseInventory().toMutableList(); if(idx>=inv.size)return false
-        val equipped=parseEquipped().toMutableList(); if(equipped.size>=6){soundManager.playSfx("blocked");return false}
+        val equipped=parseEquipped().toMutableList(); if(equipped.size>=9){soundManager.playSfx("blocked");return false}
         val item=inv.removeAt(idx); equipped.add(item)
         _player.value=_player.value.copy(inventory=gson.toJson(inv),equipped=gson.toJson(equipped))
         soundManager.playSfx("equip_blade"); calculateStats(); saveGame(); return true
@@ -578,6 +859,35 @@ class GameEngine(private val context: Context) {
     }
     fun unequipAll() { val eq=parseEquipped().toMutableList(); val inv=parseInventory().toMutableList(); inv.addAll(eq); _player.value=_player.value.copy(equipped="[]",inventory=gson.toJson(inv)); calculateStats(); saveGame() }
 
+    fun enhanceEquipped(idx:Int):Boolean {
+        val equipped=parseEquipped().toMutableList(); if(idx>=equipped.size)return false
+        val p=_player.value.copy()
+        val item=equipped[idx]
+        val cost=(item.lvl*180L+_realm.value.floor*60L).coerceAtLeast(120L)
+        if(p.gold<cost){addRealmLog("银两不足，无法强化装备。");soundManager.playSfx("blocked");return false}
+        p.gold-=cost
+        val enhanced=item.copy(lvl=item.lvl+1, value=item.value+(cost/2).toInt(), stats=item.stats.map{sm->sm.mapValues{it.value*1.08f}})
+        equipped[idx]=enhanced
+        _player.value=p.copy(equipped=gson.toJson(equipped))
+        calculateStats(); addRealmLog("强化【${item.category}】成功，品阶提升。")
+        soundManager.playSfx("equip_blade"); saveGame(); return true
+    }
+
+    fun reforgeEquipped(idx:Int):Boolean {
+        val equipped=parseEquipped().toMutableList(); if(idx>=equipped.size)return false
+        val p=_player.value.copy()
+        val item=equipped[idx]
+        val cost=(item.lvl*260L+_realm.value.floor*90L).coerceAtLeast(180L)
+        if(p.gold<cost){addRealmLog("银两不足，无法重铸装备。");soundManager.playSfx("blocked");return false}
+        p.gold-=cost
+        val reforged=createEquipment().copy(category=item.category, attribute=item.attribute, type=item.type, rarity=item.rarity, lvl=item.lvl, tier=item.tier, value=item.value)
+        val inv=parseInventory().toMutableList(); if(inv.isNotEmpty()) inv.removeAt(inv.lastIndex)
+        equipped[idx]=reforged
+        _player.value=p.copy(equipped=gson.toJson(equipped), inventory=gson.toJson(inv))
+        calculateStats(); addRealmLog("重铸【${item.category}】成功，词条已变化。")
+        soundManager.playSfx("scroll_open"); saveGame(); return true
+    }
+
     // ===== Logging =====
     private fun addCombatLog(msg:String){ val l=_combatLog.value.toMutableList(); l.add(msg); if(l.size>100)l.removeAt(0); _combatLog.value=l }
     fun addRealmLog(msg:String,choices:List<String> = emptyList()) {
@@ -592,11 +902,55 @@ class GameEngine(private val context: Context) {
     fun saveGame() {
         prefs.edit().putString("player",gson.toJson(_player.value)).putString("realm",gson.toJson(_realm.value)).apply()
     }
+
+    fun trySafeSave(): Boolean {
+        val unsafe = _player.value.inCombat || _combatState.value != null || _realm.value.isEventActive || _showLevelUp.value || _realmBreakthroughPending.value
+        if (unsafe) {
+            addRealmLog("当前处于事件或战斗中，已暂缓存档。")
+            soundManager.playSfx("blocked")
+            return false
+        }
+        saveGame()
+        addRealmLog("进度已保存。")
+        soundManager.playSfx("wood_confirm")
+        return true
+    }
     fun loadGame():Boolean {
         val pj=prefs.getString("player",null)?:return false; val rj=prefs.getString("realm",null)?:return false
-        try{_player.value=gson.fromJson(pj,PlayerEntity::class.java); _realm.value=gson.fromJson(rj,RealmState::class.java).copy(isExploring=false,isPaused=true,isEventActive=false,currentEvent=""); return true}
+        try{
+            val loadedPlayer = gson.fromJson(pj,PlayerEntity::class.java).copy(inCombat = false)
+            if (MartialSect.entries.none { it.name == loadedPlayer.sect }) loadedPlayer.sect = MartialSect.WANDERER.name
+            _player.value = loadedPlayer
+            _realm.value=gson.fromJson(rj,RealmState::class.java).copy(isExploring=false,isPaused=true,isEventActive=false,currentEvent="")
+            _combatState.value = null
+            _combatLog.value = emptyList()
+            _availableUpgrades.value = emptyList()
+            _showLevelUp.value = false
+            _realmBreakthroughPending.value = false
+            _realmBreakthroughInfo.value = null
+            calculateStats()
+            return true
+        }
         catch(_:Exception){return false}
     }
     fun hasSave()=prefs.contains("player")
-    fun deleteSave(){prefs.edit().clear().apply()}
+    fun deleteSave(){
+        prefs.edit().clear().apply()
+        _player.value = PlayerEntity()
+        _realm.value = RealmState()
+        _combatState.value = null
+        _combatLog.value = emptyList()
+        _realmLog.value = emptyList()
+        _availableUpgrades.value = emptyList()
+        _showLevelUp.value = false
+        _realmBreakthroughPending.value = false
+        _realmBreakthroughInfo.value = null
+        soundManager.stopBgm()
+    }
+
+    fun markPrologueSeen() {
+        _player.value = _player.value.copy(prologueSeen = true)
+        addRealmLog("你踏入旧牢门，暗处传来铁链拖地的声音。")
+        saveGame()
+    }
 }

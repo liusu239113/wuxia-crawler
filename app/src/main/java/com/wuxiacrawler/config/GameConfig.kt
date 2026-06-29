@@ -67,24 +67,24 @@ enum class EquipmentType(val displayName: String, val attr: EquipmentAttribute) 
 
 /** 敌人名库（匹配原版每个 archetype 下的具体名字） */
 object EnemyNames {
-    val OFFENSIVE_NORMAL = listOf("飞刀恶徒", "黑风狼卫", "寒岭狼卫", "断剑门徒", "白骨弩手", "白骨剑客", "白骨影刺", "水寨骷匪", "赤炼蛛奴", "蛮寨斧客", "蛮寨弓手")
-    val OFFENSIVE_GUARDIAN = listOf("霸刀·黑寨统领", "骨皇·白骨门主", "赤炼·蛛王", "不死·骸骨宗师")
-    val OFFENSIVE_BOSS = listOf("镇狱·魔尊", "龙庭·煞罗王")
+    val OFFENSIVE_NORMAL = listOf("飞刀恶徒", "黑风狼卫", "寒岭狼卫", "断剑门徒", "暗弩门徒", "白衣剑客", "夜行刺客", "水寨刀匪", "赤练刀客", "蛮寨斧客", "蛮寨弓手")
+    val OFFENSIVE_GUARDIAN = listOf("霸刀·黑寨统领", "枯木·白衣门主", "赤练·刀堂主", "不老·枯木宗师")
+    val OFFENSIVE_BOSS = listOf("镇山·铁掌帮主", "龙门·煞罗堂主")
 
-    val DEFENSIVE_NORMAL = listOf("铁布衫石奴", "金甲剑侍", "明王护法", "碧毒蛛奴", "白骨铁骑", "白骨刀客")
-    val DEFENSIVE_GUARDIAN = listOf("化血·坛主", "天蟹·星宿护法", "明王·金身罗汉")
-    val DEFENSIVE_BOSS = listOf("幽冥·尸王")
+    val DEFENSIVE_NORMAL = listOf("铁布衫石奴", "金甲剑侍", "明王护法", "碧毒刀奴", "黑甲枪卫", "白衣刀客")
+    val DEFENSIVE_GUARDIAN = listOf("化血·药坛主", "天钩·星宿护法", "明王·金身罗汉")
+    val DEFENSIVE_BOSS = listOf("黑袍·风雷长老")
 
-    val BALANCED_NORMAL = listOf("黑寨喽啰", "化血妖人", "金甲剑侍", "蛮寨剑客", "蛮寨斧客", "蛮寨弓手", "毒窟蛛奴", "白骨铁骑", "白骨刀客")
-    val BALANCED_GUARDIAN = listOf("龙骑·天摩尊者", "无名·堕落剑王", "白羊·星宿护法")
-    val BALANCED_BOSS = listOf("熔岩·火云老祖", "冰魄·寒霜宫主", "索命·阎罗判官")
+    val BALANCED_NORMAL = listOf("黑寨喽啰", "化血药人", "金甲剑侍", "蛮寨剑客", "蛮寨斧客", "蛮寨弓手", "毒窟刀奴", "黑甲枪卫", "白衣刀客")
+    val BALANCED_GUARDIAN = listOf("龙骑·天摩尊者", "无名·堕落剑王", "白虹·星宿护法")
+    val BALANCED_BOSS = listOf("火云·赤袍老祖", "冰魄·寒霜宫主", "索命·阎罗判官")
 
-    val QUICK_NORMAL = listOf("黑寨喽啰", "飞檐刺客", "飞刀恶徒", "荒原狼卫", "黑风狼卫", "寒岭狼卫", "蛮寨剑客", "毒窟蛛奴", "赤炼蛛奴", "碧毒蛛奴", "白骨剑客", "水寨骷匪", "白骨影刺")
-    val QUICK_GUARDIAN = listOf("蚁后·千丝夫人", "机括·机关蛛王")
-    val QUICK_BOSS = listOf("暗影·夺魂使", "蛛龙·盘丝老祖")
+    val QUICK_NORMAL = listOf("黑寨喽啰", "飞檐刺客", "飞刀恶徒", "荒原狼卫", "黑风狼卫", "寒岭狼卫", "蛮寨剑客", "毒窟刀奴", "赤练刀客", "碧毒刀奴", "白衣剑客", "水寨刀匪", "夜行刺客")
+    val QUICK_GUARDIAN = listOf("千丝·夫人", "机括·机关堂主")
+    val QUICK_BOSS = listOf("暗影·夺魂使", "盘丝·蛛索长老")
 
-    val LETHAL_NORMAL = listOf("飞檐刺客", "荒原狼卫", "黑风狼卫", "寒岭狼卫", "蛮寨剑客", "蛮寨斧客", "赤炼蛛奴", "白骨剑客", "白骨影刺")
-    val LETHAL_GUARDIAN = listOf("弑神·天狼煞", "冥犬·黄泉猎犬", "三首·地狱獒王")
+    val LETHAL_NORMAL = listOf("飞檐刺客", "荒原狼卫", "黑风狼卫", "寒岭狼卫", "蛮寨剑客", "蛮寨斧客", "赤练刀客", "白衣剑客", "夜行刺客")
+    val LETHAL_GUARDIAN = listOf("天狼·黑风寨主", "铁犬·猎犬使", "三刀·獒王寨主")
     val LETHAL_BOSS = listOf("血煞·疯魔刀圣")
 
     val MIMIC_CHEST = "机关宝匣"
@@ -104,20 +104,57 @@ enum class MartialSkill(val displayName: String, val description: String) {
     PRECISION("心明眼亮", "暴击率额外提升8%")
 }
 
-/** 境界系统 */
-enum class CultivationRealm(val displayName: String, val level: Int, val hpBonus: Float, val atkBonus: Float, val defBonus: Float) {
-    NONE("未入流", 0, 0f, 0f, 0f),
-    BODY_REFINING("淬体境", 1, 0.10f, 0.05f, 0.05f),
-    QI_CONDENSING("凝气境", 2, 0.20f, 0.10f, 0.10f),
-    FOUNDATION("筑基境", 3, 0.35f, 0.18f, 0.18f),
-    GOLDEN_CORE("金丹境", 4, 0.55f, 0.28f, 0.28f),
-    NASCENT_SOUL("元婴境", 5, 0.80f, 0.40f, 0.40f),
-    SPIRIT_SEVERING("化神境", 6, 1.10f, 0.55f, 0.55f),
-    DAO_COMBINING("合道境", 7, 1.50f, 0.75f, 0.75f),
-    IMMORTAL("渡劫飞升", 8, 2.00f, 1.00f, 1.00f)
+/** 门派成长路线 */
+enum class MartialSect(
+    val displayName: String,
+    val description: String,
+    val hpBonus: Float,
+    val atkBonus: Float,
+    val defBonus: Float,
+    val atkSpdBonus: Float,
+    val vampBonus: Float,
+    val critRateBonus: Float
+) {
+    WANDERER("江湖散人", "无门无派，成长均衡，适合稳扎稳打", 0.05f, 0.05f, 0.05f, 0.03f, 0f, 0f),
+    XUANYUE("玄岳门", "重根骨与护体，气血和防御更高", 0.16f, 0f, 0.10f, 0f, 0f, 0f),
+    DUANYUN("断云楼", "讲究一击破敌，攻击和暴击更强", 0f, 0.14f, 0f, 0f, 0f, 3f),
+    LIUYING("流影阁", "身法灵动，出手更快并略通吸血", 0f, 0.04f, 0f, 0.12f, 2f, 0f),
+    BAICAO("百草谷", "善养气疗伤，气血与吸血兼备", 0.10f, 0f, 0.04f, 0f, 3f, 0f)
 }
 
-/** 秘境随机事件类型 */
+/** 境界系统 */
+enum class CultivationRealm(val displayName: String, val level: Int, val hpBonus: Float, val atkBonus: Float, val defBonus: Float) {
+    NONE("初入江湖", 0, 0f, 0f, 0f),
+    BODY_REFINING("锻体", 1, 0.10f, 0.05f, 0.05f),
+    QI_CONDENSING("练气", 2, 0.20f, 0.10f, 0.10f),
+    FOUNDATION("通脉", 3, 0.35f, 0.18f, 0.18f),
+    GOLDEN_CORE("开窍", 4, 0.55f, 0.28f, 0.28f),
+    NASCENT_SOUL("入微", 5, 0.80f, 0.40f, 0.40f),
+    SPIRIT_SEVERING("化劲", 6, 1.10f, 0.55f, 0.55f),
+    DAO_COMBINING("宗师", 7, 1.50f, 0.75f, 0.75f),
+    IMMORTAL("大宗师", 8, 2.00f, 1.00f, 1.00f)
+}
+
+object MartialRealmDisplay {
+    private val majorRealms = listOf(
+        "初入江湖", "锻体", "练气", "通脉", "开窍", "入微", "化劲", "宗师", "大宗师", "武林名宿",
+        "一代豪侠", "绝顶高手", "江湖传奇", "天下无双", "武道神话", "破碎虚空"
+    )
+
+    fun fromLevel(level: Int): String {
+        val safeLevel = level.coerceAtLeast(1)
+        val stageIndex = (safeLevel - 1) / 10
+        val layer = (safeLevel - 1) % 10 + 1
+        val cycle = stageIndex / majorRealms.size
+        val name = majorRealms[stageIndex % majorRealms.size]
+        val suffix = if (cycle == 0) "" else " · ${cycle + 1}转"
+        return "$name$suffix · $layer 层"
+    }
+
+    fun enemyFromLevel(level: Int): String = fromLevel(level)
+}
+
+/** 江湖随机事件类型 */
 enum class RealmEventType {
     NOTHING, ENEMY, TREASURE, BLESSING, CURSE, MONARCH, NEXT_ROOM
 }

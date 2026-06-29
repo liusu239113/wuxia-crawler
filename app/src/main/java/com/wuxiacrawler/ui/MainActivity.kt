@@ -20,6 +20,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.wuxiacrawler.ui.screens.CreationScreen
 import com.wuxiacrawler.ui.screens.MainScreen
+import com.wuxiacrawler.ui.screens.PrologueScreen
 import com.wuxiacrawler.ui.screens.TitleScreen
 import com.wuxiacrawler.ui.theme.WuxiaTypography
 import com.wuxiacrawler.viewmodel.GameViewModel
@@ -42,7 +43,7 @@ class MainActivity : ComponentActivity() {
                 val observer = LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_STOP) {
                         if (engine.player.value.isAllocated) {
-                            engine.saveGame()
+                            engine.trySafeSave()
                         }
                     }
                 }
@@ -55,10 +56,16 @@ class MainActivity : ComponentActivity() {
                     when (screen) {
                         0 -> TitleScreen(
                             viewModel = viewModel,
-                            onNewGame = { screen = 2 },
+                            onNewGame = {
+                                engine.deleteSave()
+                                screen = 2
+                            },
                             onContinue = {
-                                engine.loadGame()
-                                screen = 1
+                                if (engine.loadGame()) screen = if (engine.player.value.prologueSeen) 1 else 3
+                                else {
+                                    engine.deleteSave()
+                                    screen = 0
+                                }
                             }
                         )
                         1 -> MainScreen(
@@ -67,7 +74,11 @@ class MainActivity : ComponentActivity() {
                         )
                         2 -> CreationScreen(
                             viewModel = viewModel,
-                            onCreated = { screen = 1 }
+                            onCreated = { screen = 3 }
+                        )
+                        3 -> PrologueScreen(
+                            viewModel = viewModel,
+                            onFinished = { screen = 1 }
                         )
                     }
                 }

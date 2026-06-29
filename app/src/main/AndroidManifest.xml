@@ -3,8 +3,8 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="武林秘境"
+        android:icon="@drawable/game_app_icon"
+        android:label="暗牢江湖行"
         android:theme="@style/Theme.WuxiaCrawler"
         android:supportsRtl="true">
 
