@@ -1,4 +1,4 @@
-﻿package com.arktools.anlao.ui.screens
+package com.arktools.anlao.ui.screens
 
 import android.app.Activity
 import android.graphics.BitmapFactory
@@ -492,9 +492,10 @@ private fun MiniStat(label: String, value: String, color: Color) {
 // ==================== TAB 1: 行囊 ====================
 @Composable
 private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: com.arktools.anlao.data.PlayerEntity, onFeedback: (String) -> Unit) {
-    val eq = engine.parseEquipped()
-    val inv = engine.parseInventory()
-    val activeSetBonuses = engine.activeSetBonusDescriptions()
+    // 用 derivedStateOf 缓存 JSON 解析结果，只在 player.equipped/inventory 变化时才重新解析，避免无限重组
+    val eq by remember { derivedStateOf { engine.parseEquipped() } }
+    val inv by remember { derivedStateOf { engine.parseInventory() } }
+    val activeSetBonuses by remember { derivedStateOf { engine.activeSetBonusDescriptions() } }
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<com.arktools.anlao.data.EquipmentItem?>(null) }
     var selectedEquippedIndex by remember { mutableIntStateOf(-1) }
