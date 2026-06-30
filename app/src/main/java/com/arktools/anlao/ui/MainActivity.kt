@@ -208,6 +208,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
 
     /**
      * 隐私政策同意后，初始化所有 SDK
