@@ -5,7 +5,6 @@ import android.util.Log
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -16,7 +15,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -207,6 +214,9 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
     /**
      * 隐私政策同意后，初始化所有 SDK
      */
@@ -285,10 +295,7 @@ private fun ComplianceScreen(
 
     // 监听认证成功
     LaunchedEffect(Unit) {
-        // 等待一段时间后自动检查（防沉迷SDK的认证界面是它自己弹出的）
         delay(2000)
-        // 如果防沉迷 SDK 没有弹出界面（例如漏掉了startup调用），直接通过
-        // onLoginSuccess 会在 SDK 认证成功回调时触发 onAllowEnter
     }
 
     Box(
@@ -320,7 +327,7 @@ private fun ComplianceScreen(
             }
             // 如果需要重新登录
             if (statusText.contains("返回登录")) {
-                androidx.compose.material3.TextButton(
+                TextButton(
                     onClick = onRetryLogin
                 ) {
                     Text("重新登录", color = Color(0xFFD4A853))

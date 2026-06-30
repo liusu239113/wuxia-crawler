@@ -158,7 +158,7 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
                 CombatOverlay(combatCs, cLog, sprite, eFlinch, pFlinch, dmgNums, engine)
             }
             if (combatCs.playerDead || realm.currentEvent == "combat_result") {
-                CombatResultOverlay(combatCs, engine, onDeath)
+                CombatResultOverlay(combatCs, engine, onDeath) { isAdLoading = it }
             }
         }
         StoryDialogue(storyDialogue, engine) { engine.dismissStoryDialogue() }
@@ -1193,10 +1193,10 @@ private fun CombatResultOverlay(cs: CombatState, engine: com.arktools.anlao.engi
                                 // 广告失败不影响游戏，直接继续
                             },
                             onLoadStart = {
-                                isAdLoading = true
+                                onAdLoadingChanged(true)
                             },
                             onComplete = {
-                                isAdLoading = false
+                                onAdLoadingChanged(false)
                                 showAdOptions = false
                                 engine.dismissCombatResult()
                             }
