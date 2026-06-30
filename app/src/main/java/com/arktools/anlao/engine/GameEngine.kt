@@ -1173,15 +1173,56 @@ class GameEngine(private val context: Context) {
     }
 
     fun hpValidation() {
-        val cs=_combatState.value?:return; val p=_player.value
-        if(cs.playerHp<1){cs.playerHp=0;cs.playerDead=true;p.deaths++;addCombatLog("${p.name}败下阵来……");endCombat(false)}
-        else if(triggerBossPhaseTwo(cs)){cs.enemyHpPercent=(cs.enemyHp.toFloat()/cs.enemyHpMax*100f)}
-        else if(cs.enemyHp<1){cs.enemyHp=0;cs.enemyDead=true;p.kills++; val r=_realm.value; r.currentKills++; _realm.value=r.copy();addCombatLog("${cs.enemyName}被击败！");addCombatLog("获得${cs.expReward}阅历。");playerExpGain(cs.expReward);addCombatLog("获得${cs.goldReward}两白银。");p.gold+=cs.goldReward;if(cs.hasDrop)createEquipPrint("combat");calculateStats();endCombat(true);
-            val cr=CultivationRealm.entries.find{it.name==p.realm}?:CultivationRealm.NONE; val nr=CultivationRealm.entries.getOrNull(cr.ordinal+1)
-            if(nr!=null&&p.lvl>=nr.level*10+10&&p.kills>=nr.level*5){_realmBreakthroughPending.value=true;_realmBreakthroughInfo.value=Pair(cr.displayName,nr.displayName)}
-            if(p.exp.lvlGained>0){_showLevelUp.value=true;lvlupPopup()}
-        } else { cs.enemyHpPercent=(cs.enemyHp.toFloat()/cs.enemyHpMax*100f) }
-        _player.value = _player.value.copy(); _combatState.value=cs.copy()
+        val cs = _combatState.value ?: return
+        if (cs.playerHp < 1) {
+            cs.playerHp = 0
+            cs.playerDead = true
+            val defeated = _player.value.copy()
+            defeated.deaths++
+            _player.value = defeated
+            addCombatLog("${defeated.name}败下阵来……")
+            endCombat(false)
+        } else if (triggerBossPhaseTwo(cs)) {
+            cs.enemyHpPercent = (cs.enemyHp.toFloat() / cs.enemyHpMax * 100f)
+        } else if (cs.enemyHp < 1) {
+            cs.enemyHp = 0
+            cs.enemyDead = true
+            val r = _realm.value
+            r.currentKills++
+            _realm.value = r.copy()
+
+            val winner = _player.value.copy()
+            winner.kills++
+            _player.value = winner
+
+            addCombatLog("${cs.enemyName}被击败！")
+            addCombatLog("获得${cs.expReward}阅历。")
+            playerExpGain(cs.expReward)
+
+            val rewarded = _player.value.copy(gold = _player.value.gold + cs.goldReward)
+            _player.value = rewarded
+            addCombatLog("获得${cs.goldReward}两白银。")
+
+            if (cs.hasDrop) createEquipPrint("combat")
+            calculateStats()
+            endCombat(true)
+
+            val currentPlayer = _player.value
+            val cr = CultivationRealm.entries.find { it.name == currentPlayer.realm } ?: CultivationRealm.NONE
+            val nr = CultivationRealm.entries.getOrNull(cr.ordinal + 1)
+            if (nr != null && currentPlayer.lvl >= nr.level * 10 + 10 && currentPlayer.kills >= nr.level * 5) {
+                _realmBreakthroughPending.value = true
+                _realmBreakthroughInfo.value = Pair(cr.displayName, nr.displayName)
+            }
+            if (currentPlayer.exp.lvlGained > 0) {
+                _showLevelUp.value = true
+                lvlupPopup()
+            }
+        } else {
+            cs.enemyHpPercent = (cs.enemyHp.toFloat() / cs.enemyHpMax * 100f)
+        }
+        _player.value = _player.value.copy()
+        _combatState.value = cs.copy()
     }
 
     private fun playerExpGain(expGain:Int) {

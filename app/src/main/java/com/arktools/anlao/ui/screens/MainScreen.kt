@@ -521,7 +521,7 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
 
         Text("已装备 (6槽)", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
         Row(Modifier.fillMaxWidth().border(1.dp, BorderWhite, RoundedCornerShape(8.dp)).padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
             val slotNames = listOf("兵器", "护甲", "盾牌", "头盔", "鞋履", "饰品")
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (index in 0..2) {
@@ -530,9 +530,9 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
                     }
                 }
             }
-            Column(Modifier.width(104.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(104.dp).border(1.dp, GoldAccent, RoundedCornerShape(8.dp)).padding(4.dp), contentAlignment = Alignment.TopCenter) {
-                    AssetImageBox(player.portrait, 96, player.name)
+            Column(Modifier.width(116.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(96.dp).border(1.dp, GoldAccent, RoundedCornerShape(8.dp)).padding(4.dp), contentAlignment = Alignment.TopCenter) {
+                    AssetImageBox(player.portrait, 88, player.name)
                 }
                 EquipmentTotalStats(eq)
             }
@@ -603,7 +603,6 @@ private fun EquipmentTotalStats(items: List<com.arktools.anlao.data.EquipmentIte
     items.filter { it.category.isNotBlank() }.forEach { item ->
         item.stats.forEach { sm -> sm.forEach { (k, v) -> totals[k] = (totals[k] ?: 0f) + v } }
     }
-    if (totals.isEmpty()) return
     Column(
         Modifier.fillMaxWidth().padding(top = 6.dp)
             .background(BgPanel.copy(alpha = 0.9f), RoundedCornerShape(6.dp))
@@ -611,6 +610,10 @@ private fun EquipmentTotalStats(items: List<com.arktools.anlao.data.EquipmentIte
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("装备总加成", color = GoldAccent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        if (totals.isEmpty()) {
+            Text("暂无加成", color = TextGray, fontSize = 8.sp, lineHeight = 10.sp, textAlign = TextAlign.Center)
+            return@Column
+        }
         totals.entries.chunked(2).forEach { row ->
             Text(
                 row.joinToString("  ") { (k, v) -> "${statDisp(k)}+${formatStatValue(k, v)}" },
@@ -627,7 +630,7 @@ private fun EquipmentTotalStats(items: List<com.arktools.anlao.data.EquipmentIte
 private fun EquipmentSlot(item: com.arktools.anlao.data.EquipmentItem?, slotName: String, modifier: Modifier, onClick: () -> Unit) {
     val border = item?.let { RarityCol[it.rarity] } ?: BorderWhite.copy(alpha = 0.45f)
     Box(
-        modifier.height(58.dp).border(1.dp, border, RoundedCornerShape(6.dp)).background(BgDark, RoundedCornerShape(6.dp)).clickable { onClick() }.padding(4.dp),
+        modifier.height(52.dp).border(1.dp, border, RoundedCornerShape(6.dp)).background(BgDark, RoundedCornerShape(6.dp)).clickable { onClick() }.padding(4.dp),
         contentAlignment = Alignment.Center
     ) {
         if (item == null) {
