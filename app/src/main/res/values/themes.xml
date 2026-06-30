@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.WuxiaCrawler" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ink_black</item>
+        <item name="android:statusBarColor">@color/ink_dark</item>
+        <item name="android:navigationBarColor">@color/ink_dark</item>
+    </style>
+    <color name="ink_black">#FF1A1A2E</color>
+    <color name="ink_dark">#FF16213E</color>
+</resources>
