@@ -558,9 +558,10 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
             }
         }
 
-        selected?.let {
+        val selItem = selected
+        if (selItem != null) {
             EquipmentDetail(
-                item = it,
+                item = selItem,
                 engine = engine,
                 equippedIndex = selectedEquippedIndex,
                 onUnequip = { if (selectedEquippedIndex >= 0) { engine.unequipItem(selectedEquippedIndex); selected = null; selectedEquippedIndex = -1 } },
@@ -585,13 +586,15 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
             Text("背包 (${inv.size})", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Text("点击装备，长按出售待后续扩展", color = TextGray, fontSize = 10.sp)
         }
-        if (inv.isEmpty()) {
-            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                Text("背包空空如也", color = TextGray, fontSize = 12.sp)
-            }
-        } else {
-            LazyColumn(Modifier.fillMaxSize()) {
-                itemsIndexed(inv, key = { i, item -> "${i}_${item.category}_${item.rarity}_${item.lvl}" }) { i, item ->
+        LazyColumn(Modifier.fillMaxSize()) {
+            if (inv.isEmpty()) {
+                item(key = "empty_hint") {
+                    Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                        Text("背包空空如也", color = TextGray, fontSize = 12.sp)
+                    }
+                }
+            } else {
+                itemsIndexed(inv, key = { _, item -> "${item.category}_${item.rarity}_${item.lvl}_${item.value}" }) { i, item ->
                     InventoryItemRow(item,
                         onEquip = { engine.equipItem(i); selected = null },
                         onSell = { engine.sellItem(false, i); selected = null }
