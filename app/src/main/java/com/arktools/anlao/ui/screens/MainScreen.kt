@@ -600,6 +600,7 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
 }
 
 @Composable
+@Composable
 private fun EquipmentTotalStats(items: List<com.arktools.anlao.data.EquipmentItem>) {
     val totals = linkedMapOf<String, Float>()
     items.filter { it.category.isNotBlank() }.forEach { item ->
