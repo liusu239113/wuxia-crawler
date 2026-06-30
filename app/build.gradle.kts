@@ -64,7 +64,7 @@ dependencies {
     // ========== 核心框架 ==========
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation(platform("androidx.compose:compose-bom:2024.06.00"))
+    implementation(platform("androidx.compose:compose-bom:2024.01.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
@@ -140,7 +140,6 @@ dependencies {
 
     // ========== OAID SDK（设备标识，广告归因需要） ==========
     implementation(files("libs/oaid_sdk_1.0.25.aar"))
-    implementation("com.github.gzuliyujiang:oaid:1.0.25")
 
     // ========== TapTap SDK ==========
     implementation("com.taptap.sdk:tap-core:4.10.3")
