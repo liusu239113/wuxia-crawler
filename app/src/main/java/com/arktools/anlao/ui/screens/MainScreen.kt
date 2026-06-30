@@ -171,22 +171,63 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
 @Composable
 private fun BreakthroughDialog(pending: Boolean, info: Pair<String, String>?, engine: com.arktools.anlao.engine.GameEngine) {
     if (!pending || info == null) return
+    val context = LocalContext.current
+    val activity = context as? Activity
+    var showAdStage by remember { mutableStateOf(false) }
+    var isAdLoading by remember { mutableStateOf(false) }
+
     AlertDialog(onDismissRequest = {}, containerColor = BgPanel,
         title = { Text("境界突破", color = TextWhite, fontWeight = FontWeight.Bold) },
-        text = { Text("从【${info.first}】突破到【${info.second}】！\n获得大幅属性加成，气血回满。", color = TextWhite) },
-        confirmButton = { Button(onClick = { engine.confirmBreakthrough() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00))) { Text("突破！", color = Color.Black) } },
-        dismissButton = { TextButton(onClick = { engine.dismissBreakthrough() }) { Text("暂缓", color = TextGray) } }
+        text = {
+            if (!showAdStage) {
+                Text("从【${info.first}】突破到【${info.second}】！\n获得大幅属性加成，气血回满。", color = TextWhite)
+            } else {
+                Text("突破成功！额外福利等你领取。", color = TextWhite)
+            }
+        },
+        confirmButton = {
+            if (!showAdStage) {
+                Button(onClick = { engine.confirmBreakthrough(); showAdStage = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00))) { Text("突破！", color = Color.Black) }
+            } else {
+                Button(
+                    onClick = {
+                        if (activity != null) {
+                            AdHelper.showRewardAd(
+                                activity = activity,
+                                onRewarded = { engine.breakthroughBonusByAd() },
+                                onLoadStart = { isAdLoading = true },
+                                onComplete = { isAdLoading = false; engine.dismissBreakthrough() }
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent)
+                ) { Text("看广告·突破馈赠", color = Color.Black) }
+            }
+        },
+        dismissButton = {
+            if (!showAdStage) {
+                TextButton(onClick = { engine.dismissBreakthrough() }) { Text("暂缓", color = TextGray) }
+            } else {
+                TextButton(onClick = { engine.dismissBreakthrough() }) { Text("关闭", color = TextGray) }
+            }
+        }
     )
+    AdLoadingOverlay(visible = isAdLoading)
 }
 
 @Composable
 private fun LevelUpDialog(show: Boolean, upgrades: List<com.arktools.anlao.config.UpgradeOption>, rerolls: Int, player: com.arktools.anlao.data.PlayerEntity, engine: com.arktools.anlao.engine.GameEngine) {
     if (!show || upgrades.isEmpty()) return
+    val context = LocalContext.current
+    val activity = context as? Activity
+    var isAdLoading by remember { mutableStateOf(false) }
+
     AlertDialog(onDismissRequest = {}, containerColor = BgPanel,
         title = { Text("境界提升", color = TextWhite, fontWeight = FontWeight.Bold) },
         text = {
             Column {
-                Text("剩余: ${player.exp.lvlGained}  重骰: ${rerolls}/2", color = TextGray, fontSize = 12.sp)
+                Text("剩余: ${player.exp.lvlGained}  重骰: ${rerolls}/3", color = TextGray, fontSize = 12.sp)
                 Spacer(Modifier.height(8.dp))
                 upgrades.forEachIndexed { i, opt ->
                     Button(onClick = { engine.selectUpgrade(i) },
@@ -195,10 +236,29 @@ private fun LevelUpDialog(show: Boolean, upgrades: List<com.arktools.anlao.confi
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
                     ) { Text("${opt.stat} +${"%.1f".format(opt.value)}%", color = TextWhite) }
                 }
-                if (rerolls > 0) TextButton(onClick = { engine.rerollUpgrades() }) { Text("重骰（${rerolls}次）", color = TextWhite) }
+                if (rerolls <= 0) {
+                    Button(
+                        onClick = {
+                            if (activity != null) {
+                                AdHelper.showRewardAd(
+                                    activity = activity,
+                                    onRewarded = { engine.rerollUpgradesByAd() },
+                                    onLoadStart = { isAdLoading = true },
+                                    onComplete = { isAdLoading = false }
+                                )
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                    ) { Text("看广告·重骰3次", color = Color.Black, fontSize = 13.sp) }
+                } else {
+                    TextButton(onClick = { engine.rerollUpgrades() }) { Text("重骰（${rerolls}次）", color = TextWhite) }
+                }
             }
         }, confirmButton = {}, dismissButton = {}
     )
+    AdLoadingOverlay(visible = isAdLoading)
 }
 
 @Composable
@@ -206,6 +266,11 @@ private fun EventChoiceDialog(prompt: com.arktools.anlao.engine.GameEngine.Event
     if (!realm.isEventActive || realm.currentEvent == "combat_result" || engine.player.value.inCombat || prompt == null) return
     val opts = prompt.choices.filter { it.isNotBlank() }
     if (opts.isEmpty()) return
+
+    val context = LocalContext.current
+    val activity = context as? Activity
+    var isAdLoading by remember { mutableStateOf(false) }
+    val currentEvent = realm.currentEvent
 
     Dialog(onDismissRequest = {}) {
         Column(
@@ -219,15 +284,36 @@ private fun EventChoiceDialog(prompt: com.arktools.anlao.engine.GameEngine.Event
             Text("江湖抉择", color = GoldAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text(prompt.message, color = TextWhite, fontSize = 14.sp, lineHeight = 20.sp, textAlign = TextAlign.Center)
             opts.forEachIndexed { i, option ->
+                val isAdOption = (currentEvent == "chest_reroll" || currentEvent == "merchant_bonus") && i == 0
                 Button(
-                    onClick = { engine.soundManager.playSfx("wood_confirm"); engine.chooseOption(i) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    onClick = {
+                        engine.soundManager.playSfx("wood_confirm")
+                        if (isAdOption && activity != null) {
+                            AdHelper.showRewardAd(
+                                activity = activity,
+                                onRewarded = {
+                                    when (currentEvent) {
+                                        "chest_reroll" -> engine.chestRerollByAd()
+                                        "merchant_bonus" -> engine.merchantBonusByAd()
+                                    }
+                                },
+                                onLoadStart = { isAdLoading = true },
+                                onComplete = { isAdLoading = false }
+                            )
+                        } else {
+                            engine.chooseOption(i)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isAdOption) GoldAccent else Color.Transparent
+                    ),
                     shape = RoundedCornerShape(6.dp),
-                    modifier = Modifier.fillMaxWidth().height(42.dp).border(1.dp, BorderWhite, RoundedCornerShape(6.dp))
-                ) { Text(option, color = TextWhite, fontSize = 14.sp) }
+                    modifier = Modifier.fillMaxWidth().height(42.dp).border(1.dp, if (isAdOption) GoldAccent else BorderWhite, RoundedCornerShape(6.dp))
+                ) { Text(option, color = if (isAdOption) Color.Black else TextWhite, fontSize = 14.sp) }
             }
         }
     }
+    AdLoadingOverlay(visible = isAdLoading)
 }
 
 private data class DialogueLine(val speaker: String, val content: String)

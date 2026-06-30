@@ -36,7 +36,7 @@ class GameEngine(private val context: Context) {
     val _availableUpgrades = MutableStateFlow<List<UpgradeOption>>(emptyList())
     val availableUpgrades: StateFlow<List<UpgradeOption>> = _availableUpgrades.asStateFlow()
 
-    val _rerollsLeft = MutableStateFlow(2)
+    val _rerollsLeft = MutableStateFlow(0)
     val rerollsLeft: StateFlow<Int> = _rerollsLeft.asStateFlow()
 
     val _realmBreakthroughPending = MutableStateFlow(false)
@@ -516,7 +516,15 @@ class GameEngine(private val context: Context) {
             }
             "treasure" -> { if (idx == 0) chestEvent() else { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" } }
             "route" -> { routeEvent(idx); r.isEventActive = false; r.currentEvent = "" }
-            "merchant" -> { merchantEvent(idx); r.isEventActive = false; r.currentEvent = "" }
+            "merchant" -> {
+                merchantEvent(idx)
+                if (idx == 1 && !_player.value.inCombat) {
+                    addRealmLog("游商笑道：「看在你照顾生意的份上，或许还有别的……」", listOf("看广告·买一送一", "离开"))
+                    r.isEventActive = true; r.currentEvent = "merchant_bonus"
+                } else {
+                    r.isEventActive = false; r.currentEvent = ""
+                }
+            }
             "healer" -> { healerEvent(idx); r.isEventActive = false; r.currentEvent = "" }
             "manual" -> { manualEvent(idx); r.isEventActive = false; r.currentEvent = "" }
             "blessing" -> {
@@ -558,6 +566,14 @@ class GameEngine(private val context: Context) {
                     r.actionCounter = 0
                     r.room = 1
                 }
+            }
+            "chest_reroll" -> {
+                if (idx == 0) { /* 广告由UI层触发，这里仅标记 */ }
+                else { r.isEventActive = false; r.currentEvent = "" }
+            }
+            "merchant_bonus" -> {
+                if (idx == 0) { /* 广告由UI层触发 */ }
+                else { r.isEventActive = false; r.currentEvent = "" }
             }
             else -> { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" }
         }
@@ -726,7 +742,10 @@ class GameEngine(private val context: Context) {
             0->{generateEnemy("chest");addRealmLog("机关宝匣突然弹开，暗器齐发！");startCombat("battle")}
             1->{if(_realm.value.floor==1)goldDrop() else createEquipPrint(); saveGame(); _realm.value = _realm.value.copy(isEventActive = false, currentEvent = "")}
             2->{goldDrop(); saveGame(); _realm.value = _realm.value.copy(isEventActive = false, currentEvent = "")}
-            3->{addRealmLog("宝箱是空的。");_realm.value = _realm.value.copy(isEventActive = false, currentEvent = "")}
+            3->{
+                addRealmLog("宝箱是空的。但你发现箱底有暗格，或许可以再试试……", listOf("看广告·重新开启", "离开"))
+                _realm.value = _realm.value.copy(isEventActive = true, currentEvent = "chest_reroll")
+            }
         }
     }
 
@@ -1359,11 +1378,67 @@ class GameEngine(private val context: Context) {
         addRealmLog("看广告获得双倍奖励！额外+${cs.expReward}阅历，+${cs.goldReward}白银。")
     }
 
+    /**
+     * 广告宝箱重开：空箱/陷阱后看广告，保底给白银+阅历，有概率出装备
+     */
+    fun chestRerollByAd() {
+        val floor = _realm.value.floor
+        val p = _player.value
+        val bonusGold = (Random.nextLong(80, 200) * priceScale(floor)).toLong().coerceAtLeast(100L)
+        val bonusExp = (10 + floor * 3 + Random.nextInt(5))
+        p.gold += bonusGold
+        playerExpGain(bonusExp)
+        _player.value = p
+        if (floor > 1 && Random.nextInt(3) == 0) {
+            createEquipPrint()
+            addRealmLog("看广告重新搜寻宝箱！获得${bonusGold}两白银、${bonusExp}阅历，还发现了一件装备！")
+        } else {
+            addRealmLog("看广告重新搜寻宝箱！获得${bonusGold}两白银、${bonusExp}阅历。")
+        }
+        soundManager.playSfx("coin_pouch")
+        val r = _realm.value.copy(isEventActive = false, currentEvent = "")
+        _realm.value = r
+        saveGame()
+    }
+
+    /**
+     * 广告买一送一：商人购买装备后看广告，免费获得一件同级装备
+     */
+    fun merchantBonusByAd() {
+        createEquipPrint()
+        addRealmLog("看广告获得游商额外赠送的一件装备！")
+        soundManager.playSfx("equip_blade")
+        val r = _realm.value.copy(isEventActive = false, currentEvent = "")
+        _realm.value = r
+        saveGame()
+    }
+
+    /**
+     * 广告境界突破馈赠：突破后看广告，额外获得随机属性+5%
+     */
+    fun breakthroughBonusByAd() {
+        val p = _player.value
+        val stats = listOf("hp", "atk", "def", "atkSpd")
+        val key = stats.random()
+        val boost = 5f
+        when (key) {
+            "hp" -> p.bonusStats.hp += boost
+            "atk" -> p.bonusStats.atk += boost
+            "def" -> p.bonusStats.def += boost
+            "atkSpd" -> p.bonusStats.atkSpd += boost
+        }
+        _player.value = p
+        calculateStats()
+        addRealmLog("看广告获得突破馈赠！${statDisplay(key)}+${boost}%！")
+        soundManager.playSfx("realm_breakthrough")
+        saveGame()
+    }
+
     private fun lvlupPopup() {
         soundManager.playSfx("realm_breakthrough"); val p=_player.value
         addCombatLog("境界提升！（${MartialRealmDisplay.fromLevel(p.lvl-p.exp.lvlGained)}→${MartialRealmDisplay.fromLevel(p.lvl)}）")
         val percentages=mapOf("hp" to 10f,"atk" to 8f,"def" to 8f,"atkSpd" to 3f,"vamp" to 0.5f,"critRate" to 1f,"critDmg" to 6f)
-        generateLvlStats(2,percentages)
+        generateLvlStats(0,percentages)
     }
 
     fun generateLvlStats(rerolls:Int,percentages:Map<String,Float>) {
@@ -1373,11 +1448,18 @@ class GameEngine(private val context: Context) {
         _rerollsLeft.value=rerolls
     }
 
+    fun rerollUpgradesByAd(): Boolean {
+        _rerollsLeft.value = 3
+        soundManager.playSfx("coin_pouch")
+        generateLvlStats(3, mapOf("hp" to 10f,"atk" to 8f,"def" to 8f,"atkSpd" to 3f,"vamp" to 0.5f,"critRate" to 1f,"critDmg" to 6f))
+        return true
+    }
+
     fun selectUpgrade(idx:Int) {
         val opts=_availableUpgrades.value; if(idx>=opts.size)return; val chosen=opts[idx]; val p=_player.value
         when(chosen.statKey){"hp"->p.bonusStats.hp+=chosen.value;"atk"->p.bonusStats.atk+=chosen.value;"def"->p.bonusStats.def+=chosen.value;"atkSpd"->p.bonusStats.atkSpd+=chosen.value;"vamp"->p.bonusStats.vamp+=chosen.value;"critRate"->p.bonusStats.critRate+=chosen.value;"critDmg"->p.bonusStats.critDmg+=chosen.value}
         soundManager.playSfx("scroll_open"); p.exp.lvlGained--
-        if(p.exp.lvlGained>0){_availableUpgrades.value=emptyList(); generateLvlStats(2,mapOf("hp" to 10f,"atk" to 8f,"def" to 8f,"atkSpd" to 3f,"vamp" to 0.5f,"critRate" to 1f,"critDmg" to 6f))}
+        if(p.exp.lvlGained>0){_availableUpgrades.value=emptyList(); generateLvlStats(0,mapOf("hp" to 10f,"atk" to 8f,"def" to 8f,"atkSpd" to 3f,"vamp" to 0.5f,"critRate" to 1f,"critDmg" to 6f))}
         else {_showLevelUp.value=false; _availableUpgrades.value=emptyList(); _rerollsLeft.value=0; p.exp.lvlGained=0 }
         calculateStats(); _player.value = p.copy(); saveGame()
     }
