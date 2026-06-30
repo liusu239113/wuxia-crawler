@@ -129,7 +129,7 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
     LaunchedEffect(toastMessage) { if (toastMessage != null) { delay(1500); toastMessage = null } }
 
     // ===== 主体 =====
-    Box(Modifier.fillMaxSize().background(BgDark)) {
+    Box(Modifier.fillMaxSize().background(BgDark).safeDrawingPadding()) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = { TopHeader(player, muted) { engine.soundManager.toggleMute() } },
@@ -884,9 +884,14 @@ private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eF
                 val phaseColor = if (cs.bossPhase >= 2) HpRed else GoldAccent
                 Text("${MartialRealmDisplay.enemyFromLevel(cs.enemyLvl)}$phaseText", color = phaseColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Box(Modifier.size(130.dp).graphicsLayer { translationX = eShake; scaleX = eScale; scaleY = eScale }, contentAlignment = Alignment.Center) {
-                    if (bitmap != null) Image(bitmap, "enemy", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                    else Text(cs.enemyName.take(1), color = TextWhite, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+                Box(Modifier.size(width = 190.dp, height = 150.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(130.dp).graphicsLayer { translationX = eShake; scaleX = eScale; scaleY = eScale }, contentAlignment = Alignment.Center) {
+                        if (bitmap != null) Image(bitmap, "enemy", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                        else Text(cs.enemyName.take(1), color = TextWhite, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+                    }
+                    dmgNums.filter { it.target == "enemy" }.takeLast(4).forEachIndexed { i, dn ->
+                        FloatingDamageNumber(dn, i, Alignment.CenterEnd)
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 val ePct = (cs.enemyHp.toFloat() / cs.enemyHpMax).coerceIn(0f, 1f)
@@ -897,13 +902,6 @@ private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eF
                     Text("${cs.enemyHp}/${cs.enemyHpMax}", color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
                 Text("攻:${cs.enemyAtk} 防:${cs.enemyDef} 速:${"%.1f".format(cs.enemyAtkSpd)}", color = TextGray, fontSize = 10.sp)
-                Box(Modifier.fillMaxWidth().height(28.dp), contentAlignment = Alignment.CenterEnd) {
-                    dmgNums.takeLast(2).forEachIndexed { i, dn ->
-                        Text(dn.text, color = if (dn.isCrit) GoldAccent else TextWhite,
-                            fontSize = (15 - i * 2).sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.offset(x = (-(i * 42)).dp).background(Color(0xAA000000), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 2.dp).graphicsLayer { alpha = 1f - i * 0.25f })
-                    }
-                }
             }
 
             Spacer(Modifier.height(8.dp))
@@ -912,7 +910,12 @@ private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eF
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(engine.player.value.name, color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Text(MartialRealmDisplay.fromLevel(engine.player.value.lvl), color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Box(Modifier.size(90.dp).graphicsLayer { translationX = pShake; scaleX = pScale; scaleY = pScale }, contentAlignment = Alignment.Center) { AssetImageBox(engine.player.value.portrait, 90, engine.player.value.name) }
+                Box(Modifier.size(width = 160.dp, height = 110.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(90.dp).graphicsLayer { translationX = pShake; scaleX = pScale; scaleY = pScale }, contentAlignment = Alignment.Center) { AssetImageBox(engine.player.value.portrait, 90, engine.player.value.name) }
+                    dmgNums.filter { it.target == "player" }.takeLast(4).forEachIndexed { i, dn ->
+                        FloatingDamageNumber(dn, i, Alignment.CenterStart)
+                    }
+                }
                 val pPct = (cs.playerHp.toFloat() / cs.playerHpMax).coerceIn(0f, 1f)
                 Box(Modifier.fillMaxWidth().height(22.dp), contentAlignment = Alignment.Center) {
                     Box(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(4.dp)).background(Color.Gray)) {
@@ -931,6 +934,42 @@ private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eF
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FloatingDamageNumber(dn: com.wuxiacrawler.engine.GameEngine.DmgNumber, stackIndex: Int, alignment: Alignment) {
+    val alpha = remember(dn.id) { Animatable(1f) }
+    val lift = remember(dn.id) { Animatable(0f) }
+    val scale = remember(dn.id) { Animatable(if (dn.isCrit) 1.45f else 1.15f) }
+    LaunchedEffect(dn.id) {
+        launch { lift.animateTo(-42f - stackIndex * 8f, tween(720)) }
+        launch { scale.animateTo(1f, spring(stiffness = Spring.StiffnessMedium)) }
+        delay(260)
+        alpha.animateTo(0f, tween(460))
+    }
+    val color = when (dn.kind) {
+        "crit" -> GoldAccent
+        "heavy" -> Color(0xFFFF5A3D)
+        "skill" -> Color(0xFF8FD7FF)
+        "thorns" -> Color(0xFFB68CFF)
+        "taken" -> Color(0xFFFF6B6B)
+        else -> TextWhite
+    }
+    val xOffset = if (alignment == Alignment.CenterStart) (-18 - stackIndex * 8).dp else (18 + stackIndex * 8).dp
+    Box(Modifier.fillMaxSize(), contentAlignment = alignment) {
+        Text(
+            dn.text,
+            color = color,
+            fontSize = if (dn.isCrit || dn.kind == "heavy") 24.sp else 19.sp,
+            fontWeight = FontWeight.Black,
+            modifier = Modifier
+                .offset(x = xOffset, y = lift.value.dp)
+                .graphicsLayer { this.alpha = alpha.value; scaleX = scale.value; scaleY = scale.value }
+                .background(Color(0xAA000000), RoundedCornerShape(12.dp))
+                .border(1.dp, color.copy(alpha = 0.75f), RoundedCornerShape(12.dp))
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+        )
     }
 }
 

@@ -45,10 +45,10 @@ private val StoryDim = Color(0xFFB8AEA1)
 
 private data class StoryLine(val speaker: String, val text: String)
 
-private val prologueLines = listOf(
+private fun prologueLines(gender: String) = listOf(
     StoryLine("旁白", "三十年前，暗牢一夜沉入地底。江湖传言，那里关着一部能改写天下武学的《无相狱典》。"),
     StoryLine("旁白", "三十年后，七大门派相继失踪，押镖人死在空巷，客栈雨夜只剩一盏不灭的灯。"),
-    StoryLine("掌柜", "少侠，你醒了？昨夜有人把你送到我这儿，只留下一枚断裂的牢符。"),
+    StoryLine("掌柜", "${if (gender == "female") "姑娘" else "少侠"}，你醒了？昨夜有人把你送到我这儿，只留下一枚断裂的牢符。"),
     StoryLine("掌柜", "他说若你想知道自己的身世，就去城外旧牢门。可那地方，进去的人十个有九个回不来。"),
     StoryLine("你", "若真有人在暗处摆局，那我便入局。若这江湖要我做棋子，我便先掀了棋盘。"),
     StoryLine("掌柜", "好。拿上这盏灯，顺着青石路走。暗牢第一道门后，是你的第一场江湖。")
@@ -59,7 +59,8 @@ fun PrologueScreen(viewModel: GameViewModel, onFinished: () -> Unit) {
     var index by remember { mutableIntStateOf(0) }
     var visibleCount by remember { mutableIntStateOf(0) }
     var finishedTyping by remember { mutableStateOf(false) }
-    val line = prologueLines[index]
+    val lines = remember(viewModel.engine.player.value.gender) { prologueLines(viewModel.engine.player.value.gender) }
+    val line = lines[index]
 
     LaunchedEffect(index) {
         visibleCount = 0
@@ -105,7 +106,7 @@ fun PrologueScreen(viewModel: GameViewModel, onFinished: () -> Unit) {
                         if (!finishedTyping) {
                             visibleCount = line.text.length
                             finishedTyping = true
-                        } else if (index < prologueLines.lastIndex) {
+                        } else if (index < lines.lastIndex) {
                             index++
                         } else {
                             viewModel.engine.markPrologueSeen()
@@ -115,7 +116,7 @@ fun PrologueScreen(viewModel: GameViewModel, onFinished: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                     shape = RoundedCornerShape(6.dp),
                     modifier = Modifier.weight(1f).height(48.dp).border(1.dp, StoryBorder, RoundedCornerShape(6.dp))
-                ) { Text(if (index == prologueLines.lastIndex && finishedTyping) "踏入暗牢" else "继续", color = StoryText, fontSize = 16.sp) }
+                ) { Text(if (index == lines.lastIndex && finishedTyping) "踏入暗牢" else "继续", color = StoryText, fontSize = 16.sp) }
 
                 Button(
                     onClick = {
