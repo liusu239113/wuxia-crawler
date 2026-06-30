@@ -1,3 +1,30 @@
+# ========== 通用：忽略所有第三方 SDK 缺失类的警告 ==========
+-dontwarn com.tosin.sdk.**
+-dontwarn com.bytedance.sdk.**
+-dontwarn com.qq.e.**
+-dontwarn com.kwad.sdk.**
+-dontwarn com.sigmob.**
+-dontwarn com.anythink.**
+-dontwarn com.adgain.**
+-dontwarn com.hx.sdk.**
+-dontwarn com.yout.sdk.**
+-dontwarn com.ubix.**
+-dontwarn com.wangmai.**
+-dontwarn com.bun.miitmdid.**
+-dontwarn com.advista.**
+-dontwarn com.taptap.sdk.**
+-dontwarn com.tapsdk.**
+-dontwarn com.baidu.**
+-dontwarn org.apache.http.**
+-dontwarn org.json.**
+-dontwarn dalvik.system.**
+-dontwarn javax.annotation.**
+-dontwarn com.android.org.conscrypt.**
+-dontwarn javax.net.ssl.**
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn kotlin.reflect.jvm.internal.**
+-dontwarn kotlinx.coroutines.debug.**
+
 # Keep Compose
 -keep class androidx.compose.** { *; }
 
@@ -34,52 +61,9 @@
     public static ** valueOf(java.lang.String);
 }
 
-# ========== 广告 SDK 保护规则 ==========
-# Tosin SDK
--keep class com.tosin.sdk.** { *; }
--dontwarn com.tosin.sdk.**
+# Keep our app
+-keep class com.arktools.anlao.** { *; }
 
-# 穿山甲 (如果包含在适配器内)
--keep class com.bytedance.sdk.** { *; }
--dontwarn com.bytedance.sdk.**
-
-# 优量汇 GDT
--keep class com.qq.e.** { *; }
--dontwarn com.qq.e.**
-
-# 快手
--keep class com.kwad.sdk.** { *; }
--dontwarn com.kwad.sdk.**
-
-# Sigmob
--keep class com.sigmob.** { *; }
--dontwarn com.sigmob.**
-
-# TopOn
--keep class com.anythink.** { *; }
--dontwarn com.anythink.**
-
-# AdGain
--keep class com.adgain.** { *; }
--dontwarn com.adgain.**
-
-# HX/互选
--keep class com.hx.sdk.** { *; }
--dontwarn com.hx.sdk.**
-
-# 优量汇/优推 (AdAlliance)
--keep class com.yout.sdk.** { *; }
--dontwarn com.yout.sdk.**
-
-# OAID
--keep class com.bun.miitmdid.** { *; }
--dontwarn com.bun.miitmdid.**
-
-# ========== TapTap SDK ==========
--keep class com.taptap.sdk.** { *; }
--dontwarn com.taptap.sdk.**
-
-# ========== 通用 ==========
 # Retrofit / OkHttp
 -keep class retrofit2.** { *; }
 -dontwarn retrofit2.**
