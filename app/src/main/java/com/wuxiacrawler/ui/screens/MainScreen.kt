@@ -523,8 +523,11 @@ private fun InventoryTab(engine: com.wuxiacrawler.engine.GameEngine, player: com
                     }
                 }
             }
-            Box(Modifier.size(104.dp).border(1.dp, GoldAccent, RoundedCornerShape(8.dp)).padding(4.dp), contentAlignment = Alignment.Center) {
-                AssetImageBox(player.portrait, 96, player.name)
+            Column(Modifier.width(104.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(104.dp).border(1.dp, GoldAccent, RoundedCornerShape(8.dp)).padding(4.dp), contentAlignment = Alignment.TopCenter) {
+                    AssetImageBox(player.portrait, 96, player.name)
+                }
+                EquipmentTotalStats(eq)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (index in 3..5) {
@@ -583,6 +586,32 @@ private fun InventoryTab(engine: com.wuxiacrawler.engine.GameEngine, player: com
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun EquipmentTotalStats(items: List<com.wuxiacrawler.data.EquipmentItem>) {
+    val totals = linkedMapOf<String, Float>()
+    items.filter { it.category.isNotBlank() }.forEach { item ->
+        item.stats.forEach { sm -> sm.forEach { (k, v) -> totals[k] = (totals[k] ?: 0f) + v } }
+    }
+    if (totals.isEmpty()) return
+    Column(
+        Modifier.fillMaxWidth().padding(top = 6.dp)
+            .background(BgPanel.copy(alpha = 0.9f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("装备总加成", color = GoldAccent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        totals.entries.chunked(2).forEach { row ->
+            Text(
+                row.joinToString("  ") { (k, v) -> "${statDisp(k)}+${formatStatValue(k, v)}" },
+                color = TextGray,
+                fontSize = 8.sp,
+                lineHeight = 10.sp,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -699,8 +728,7 @@ private fun EquipmentDetail(
         Text("${item.rarity} ${item.category}", color = RarityCol[item.rarity] ?: TextWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Text("${item.type} · 品阶${item.lvl} · 价值${item.value}两", color = TextGray, fontSize = 10.sp)
         val statText = item.stats.flatMap { it.entries }.joinToString("  ") { (k, v) ->
-            val u = if (k in listOf("atkSpd", "vamp", "critRate", "critDmg")) "%" else ""
-            "${statDisp(k)}+${"%.1f".format(v)}$u"
+            "${statDisp(k)}+${formatStatValue(k, v)}"
         }
         Text(statText.ifBlank { "无额外属性" }, color = TextWhite, fontSize = 11.sp, lineHeight = 16.sp)
         if (equippedIndex >= 0) {
@@ -817,7 +845,7 @@ private fun CharacterTab(player: com.wuxiacrawler.data.PlayerEntity, engine: com
                 Row(Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
                     Text("${item.rarity}${item.category} ", color = RarityCol[item.rarity] ?: TextWhite, fontSize = 11.sp)
                     item.stats.forEach { sm -> sm.forEach { (k, v) ->
-                        Text("${statDisp(k)}+${"%.1f".format(v)} ", color = TextGray, fontSize = 10.sp)
+                        Text("${statDisp(k)}+${formatStatValue(k, v)} ", color = TextGray, fontSize = 10.sp)
                     } }
                 }
             }
@@ -967,7 +995,7 @@ private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eF
                     }
                     Text("${cs.enemyHp}/${cs.enemyHpMax}", color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
-                Text("攻:${cs.enemyAtk} 防:${cs.enemyDef} 速:${"%.1f".format(cs.enemyAtkSpd)}", color = TextGray, fontSize = 10.sp)
+                Text("攻:${cs.enemyAtk} 防:${cs.enemyDef} 速:${"%.1f".format(cs.enemyAtkSpd)} 暴:${"%.1f".format(cs.enemyCritRate)}%", color = TextGray, fontSize = 10.sp)
             }
 
             Spacer(Modifier.height(8.dp))
@@ -989,7 +1017,7 @@ private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eF
                     }
                     Text("${cs.playerHp}/${cs.playerHpMax}", color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
-                Text("攻:${cs.playerAtk} 防:${cs.playerDef} 速:${"%.1f".format(cs.playerAtkSpd)}", color = TextGray, fontSize = 10.sp)
+                Text("攻:${cs.playerAtk} 防:${cs.playerDef} 速:${"%.1f".format(cs.playerAtkSpd)} 吸:${"%.1f".format(cs.playerVamp)}%", color = TextGray, fontSize = 10.sp)
             }
 
             Spacer(Modifier.height(6.dp))
@@ -1019,6 +1047,7 @@ private fun FloatingDamageNumber(dn: com.wuxiacrawler.engine.GameEngine.DmgNumbe
         "heavy" -> Color(0xFFFF5A3D)
         "skill" -> Color(0xFF8FD7FF)
         "thorns" -> Color(0xFFB68CFF)
+        "heal" -> Color(0xFF5CFF8A)
         "taken" -> Color(0xFFFF6B6B)
         else -> TextWhite
     }
@@ -1066,6 +1095,12 @@ private fun CombatResultOverlay(cs: CombatState, engine: com.wuxiacrawler.engine
 private fun statDisp(k: String) = when (k) {
     "hp" -> "气血"; "atk" -> "攻击"; "def" -> "防御"; "atkSpd" -> "身法"
     "vamp" -> "吸血"; "critRate" -> "暴率"; "critDmg" -> "暴伤"; else -> k
+}
+
+private fun formatStatValue(k: String, v: Float): String = if (k in listOf("atkSpd", "vamp", "critRate", "critDmg")) {
+    "%.2f%%".format(v)
+} else {
+    "%.2f".format(v)
 }
 
 private fun formatTime(seconds: Long): String {

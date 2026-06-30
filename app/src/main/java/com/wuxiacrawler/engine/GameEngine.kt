@@ -1048,7 +1048,7 @@ class GameEngine(private val context: Context) {
     fun playerAttack():Boolean {
         val cs=_combatState.value?:return false; val p=_player.value; if(!p.inCombat)return false
         soundManager.playSfx("sword_slash")
-        var dmg=cs.playerAtk*(cs.playerAtk.toFloat()/(cs.playerAtk+cs.enemyDef)); dmg*=(0.9f+Random.nextFloat()*0.2f)
+        var dmg=cs.playerAtk*(cs.playerAtk.toFloat()/(cs.playerAtk+cs.enemyDef*1.5f)); dmg*=(0.9f+Random.nextFloat()*0.2f)
         val isCrit=Random.nextFloat()*100<cs.playerCritRate; val dType=if(isCrit){dmg=(dmg*(1f+cs.playerCritDmg/100f)).toInt().toFloat();"暴击"} else {dmg.toInt().toFloat();"伤害"}
         var kind = if (isCrit) "crit" else "normal"
         if(p.skills.contains("REMNANT_EDGE")){dmg+=(cs.enemyHp*0.08f).toInt(); kind = "skill"}
@@ -1061,7 +1061,12 @@ class GameEngine(private val context: Context) {
         cs.enemyHp=maxOf(0,cs.enemyHp-dmg.toInt()); cs.playerHp=minOf(cs.playerHpMax,cs.playerHp+ls)
         val cm=if(isCrit)"【暴击！】" else ""
         addCombatLog("${p.name}对${cs.enemyName}造成${dmg.toInt()}点${dType} $cm")
-        _dmgNumbers.value=(_dmgNumbers.value+DmgNumber(nextDamageNumberId++, if (isCrit) "-${dmg.toInt()}!" else "-${dmg.toInt()}", isCrit, "enemy", kind)).takeLast(10); _enemyFlinch.value=true
+        _dmgNumbers.value=(_dmgNumbers.value+DmgNumber(nextDamageNumberId++, if (isCrit) "-${dmg.toInt()}!" else "-${dmg.toInt()}", isCrit, "enemy", kind)).takeLast(10)
+        if (ls > 0) {
+            addCombatLog("吸血生效，恢复${ls}点气血。")
+            _dmgNumbers.value=(_dmgNumbers.value+DmgNumber(nextDamageNumberId++, "+${ls}", false, "player", "heal")).takeLast(10)
+        }
+        _enemyFlinch.value=true
         _combatState.value=cs.copy(); hpValidation()
         return cs.enemyHp>0&&cs.playerHp>0
     }
@@ -1069,7 +1074,7 @@ class GameEngine(private val context: Context) {
     fun enemyAttack():Boolean {
         val cs=_combatState.value?:return false; val p=_player.value; if(!p.inCombat)return false
         soundManager.playSfx("sword_slash")
-        var dmg=cs.enemyAtk*(cs.enemyAtk.toFloat()/(cs.enemyAtk+cs.playerDef)); dmg*=(0.9f+Random.nextFloat()*0.2f)
+        var dmg=cs.enemyAtk*(cs.enemyAtk.toFloat()/(cs.enemyAtk+cs.playerDef*1.5f)); dmg*=(0.9f+Random.nextFloat()*0.2f)
         val isCrit = Random.nextFloat()*100<cs.enemyCritRate
         var kind = if (isCrit) "crit" else "taken"
         if(isCrit)dmg=(dmg*(1f+cs.enemyCritDmg/100f)).toInt().toFloat() else dmg=dmg.toInt().toFloat()
@@ -1258,14 +1263,8 @@ class GameEngine(private val context: Context) {
     // ===== Equipment =====
     fun createEquipPrint(condition:String="jianghu"):EquipmentItem {
         val item=createEquipment()
-        val icon=equipmentIcon(item.category)
-        val sb=StringBuilder()
-        item.stats.forEach{sm->sm.forEach{(k,v)->
-            val pct=if(k in listOf("atkSpd","vamp","critRate","critDmg"))"%" else ""
-            sb.append("${statDisplay(k)}+${"%.2f".format(v)}$pct ")}
-        }
-        if(condition=="combat")addCombatLog("${_combatState.value?.enemyName}掉落【${item.rarity}${item.category}】${sb}")
-        else addRealmLog("获得【${item.rarity}${item.category}】${sb}")
+        if(condition=="combat") addCombatLog("${_combatState.value?.enemyName}掉落【${item.rarity}${item.category}】，已收入背包。")
+        else addRealmLog("获得【${item.rarity}${item.category}】，可在行囊中查看词条。")
         return item
     }
 
