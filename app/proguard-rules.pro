@@ -2,9 +2,6 @@
 -ignorewarnings
 -dontwarn **
 
-# 禁用 R8 优化（保留 shrinking 和 obfuscation），防止 R8 合并/删除方法导致 NoSuchMethodError
--dontoptimize
-
 # Keep Compose - 防止 R8 删除/合并 Compose 内部类导致 NoSuchMethodError
 -keep class androidx.compose.** { *; }
 -keep interface androidx.compose.** { *; }

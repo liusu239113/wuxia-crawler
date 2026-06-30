@@ -492,10 +492,10 @@ private fun MiniStat(label: String, value: String, color: Color) {
 // ==================== TAB 1: 行囊 ====================
 @Composable
 private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: com.arktools.anlao.data.PlayerEntity, onFeedback: (String) -> Unit) {
-    // 只在 equipped/inventory JSON 变化时才重新解析，避免频繁 JSON 反序列化
-    val eq = remember(player.equipped) { engine.parseEquipped() }
-    val inv = remember(player.inventory) { engine.parseInventory() }
-    val activeSetBonuses = remember(player.equipped) { engine.activeSetBonusDescriptions() }
+    // 用 derivedStateOf 缓存 JSON 解析结果，只在 player.equipped/inventory 变化时才重新解析，避免无限重组
+    val eq by remember { derivedStateOf { engine.parseEquipped() } }
+    val inv by remember { derivedStateOf { engine.parseInventory() } }
+    val activeSetBonuses by remember { derivedStateOf { engine.activeSetBonusDescriptions() } }
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<com.arktools.anlao.data.EquipmentItem?>(null) }
     var selectedEquippedIndex by remember { mutableIntStateOf(-1) }
