@@ -3,7 +3,6 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -43,6 +42,7 @@ android {
         compose = true
         buildConfig = true
     }
+    composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
     buildTypes {
         release {
             check(hasReleaseKeystore) {
@@ -64,7 +64,7 @@ dependencies {
     // ========== 核心框架 ==========
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation(platform("androidx.compose:compose-bom:2024.06.00"))
+    implementation(platform("androidx.compose:compose-bom:2024.01.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
@@ -140,8 +140,7 @@ dependencies {
     implementation(files("libs/jiatou/tosin-advista-adapter-1.9.2.aar"))
 
     // ========== OAID SDK（设备标识，广告归因需要） ==========
-    implementation("com.github.gzu-liyujiang:Android_CN_OAID:4.2.9")
-    // 注：Android_CN_OAID 已涵盖 oaid_sdk 功能，不再需要本地 oaid_sdk_1.0.25.aar
+    implementation(files("libs/oaid_sdk_1.0.25.aar"))
 
     // ========== TapTap SDK ==========
     implementation("com.taptap.sdk:tap-core:4.10.3")
