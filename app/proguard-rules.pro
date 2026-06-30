@@ -4,6 +4,10 @@
 
 # Keep Compose
 -keep class androidx.compose.** { *; }
+# Keep Compose 动画 keyframes 方法（防止 R8 误 strip 导致 CircularProgressIndicator 崩溃）
+-keepclassmembers class androidx.compose.animation.core.KeyframesSpec$KeyframesSpecConfig {
+    *** at(...);
+}
 
 # Keep Kotlin metadata
 -keepattributes RuntimeVisibleAnnotations
