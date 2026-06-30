@@ -1323,6 +1323,40 @@ class GameEngine(private val context: Context) {
         saveGame()
     }
 
+    /**
+     * 广告复活：满血复活，不扣除阅历/白银，不掉层数，继续探索
+     */
+    fun reviveByAd() {
+        val p = _player.value.copy(inCombat = false)
+        p.stats.hp = p.stats.hpMax
+        p.stats.hpPercent = 100f
+        _combatState.value = null
+        _eventPrompt.value = null
+        _combatLog.value = emptyList()
+        _player.value = p
+        val r = _realm.value.copy()
+        r.isExploring = true
+        r.isPaused = false
+        r.isEventActive = false
+        r.currentEvent = ""
+        _realm.value = r
+        calculateStats()
+        addRealmLog("${p.name}通过广告满血复活，继续闯荡江湖！")
+        saveGame()
+    }
+
+    /**
+     * 广告双倍收益：战斗胜利后看广告，额外获得一份阅历和白银
+     */
+    fun doubleCombatReward() {
+        val cs = _combatState.value ?: return
+        val p = _player.value
+        playerExpGain(cs.expReward)
+        p.gold += cs.goldReward.toLong()
+        _player.value = p
+        addCombatLog("看广告获得双倍奖励！额外+${cs.expReward}阅历，+${cs.goldReward}白银。")
+    }
+
     private fun lvlupPopup() {
         soundManager.playSfx("realm_breakthrough"); val p=_player.value
         addCombatLog("境界提升！（${MartialRealmDisplay.fromLevel(p.lvl-p.exp.lvlGained)}→${MartialRealmDisplay.fromLevel(p.lvl)}）")
@@ -1464,7 +1498,7 @@ class GameEngine(private val context: Context) {
 
     // ===== Inventory ops =====
     fun equipItem(idx:Int):Boolean {
-        val inv=parseInventory().toMutableList(); if(idx>=inv.size)return false
+        val inv=parseInventory().toMutableList(); if(idx<0||idx>=inv.size)return false
         val equipped=parseEquipped().toMutableList()
         while (equipped.size < equipSlots.size) equipped.add(EquipmentItem())
         if (equipped.size > equipSlots.size) {
@@ -1481,15 +1515,15 @@ class GameEngine(private val context: Context) {
         soundManager.playSfx("equip_blade"); calculateStats(); saveGame(); return true
     }
     fun unequipItem(idx:Int):Boolean {
-        val equipped=parseEquipped().toMutableList(); if(idx>=equipped.size)return false
+        val equipped=parseEquipped().toMutableList(); if(idx<0||idx>=equipped.size)return false
         val inv=parseInventory().toMutableList(); val item=equipped.removeAt(idx); inv.add(item)
         _player.value=_player.value.copy(inventory=gson.toJson(inv),equipped=gson.toJson(equipped))
         soundManager.playSfx("sheath_blade"); calculateStats(); saveGame(); return true
     }
     fun sellItem(isEquipped:Boolean,idx:Int):Boolean {
         val p=_player.value
-        if(isEquipped){val e=parseEquipped().toMutableList();if(idx>=e.size)return false;val item=e.removeAt(idx);p.gold+=item.value;_player.value=p.copy(equipped=gson.toJson(e))}
-        else{val i=parseInventory().toMutableList();if(idx>=i.size)return false;val item=i.removeAt(idx);p.gold+=item.value;_player.value=p.copy(inventory=gson.toJson(i))}
+        if(isEquipped){val e=parseEquipped().toMutableList();if(idx<0||idx>=e.size)return false;val item=e.removeAt(idx);p.gold+=item.value;_player.value=p.copy(equipped=gson.toJson(e))}
+        else{val i=parseInventory().toMutableList();if(idx<0||idx>=i.size)return false;val item=i.removeAt(idx);p.gold+=item.value;_player.value=p.copy(inventory=gson.toJson(i))}
         soundManager.playSfx("coin_pouch"); calculateStats(); saveGame(); return true
     }
     fun sellAll(rarity:String) {
@@ -1506,7 +1540,7 @@ class GameEngine(private val context: Context) {
     fun reforgeCost(item: EquipmentItem): Long = (item.lvl*260L+_realm.value.floor*90L).coerceAtLeast(180L)
 
     fun enhanceEquipped(idx:Int):Boolean {
-        val equipped=parseEquipped().toMutableList(); if(idx>=equipped.size)return false
+        val equipped=parseEquipped().toMutableList(); if(idx<0||idx>=equipped.size)return false
         val p=_player.value.copy()
         val item=equipped[idx]
         if (item.category.isBlank()) return false
@@ -1521,7 +1555,7 @@ class GameEngine(private val context: Context) {
     }
 
     fun reforgeEquipped(idx:Int):Boolean {
-        val equipped=parseEquipped().toMutableList(); if(idx>=equipped.size)return false
+        val equipped=parseEquipped().toMutableList(); if(idx<0||idx>=equipped.size)return false
         val p=_player.value.copy()
         val item=equipped[idx]
         if (item.category.isBlank()) return false

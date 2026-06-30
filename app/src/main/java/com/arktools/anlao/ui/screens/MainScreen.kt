@@ -1,5 +1,6 @@
 package com.arktools.anlao.ui.screens
 
+import android.app.Activity
 import android.graphics.BitmapFactory
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -23,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.arktools.anlao.adsdk.AdHelper
 import com.arktools.anlao.data.CombatState
 import com.arktools.anlao.config.EquipmentRarity
 import com.arktools.anlao.config.CultivationRealm
@@ -586,7 +588,7 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
             }
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
-                itemsIndexed(inv) { i, item ->
+                itemsIndexed(inv, key = { i, _ -> i }) { i, item ->
                     InventoryItemRow(item,
                         onEquip = { selected = item; selectedEquippedIndex = -1; engine.equipItem(i) },
                         onSell = { engine.sellItem(false, i); selected = null }
@@ -1082,19 +1084,118 @@ private fun FloatingDamageNumber(dn: com.arktools.anlao.engine.GameEngine.DmgNum
 private fun CombatResultOverlay(cs: CombatState, engine: com.arktools.anlao.engine.GameEngine, onDeath: () -> Unit) {
     val alpha = remember { Animatable(0f) }
     LaunchedEffect(cs.combatId, cs.playerDead, cs.enemyDead) { alpha.animateTo(1f, tween(450)) }
+
+    val context = LocalContext.current
+    val activity = context as? Activity
+    var showAdOptions by remember { mutableStateOf(false) }
+
     Box(Modifier.fillMaxSize().background(BgDark.copy(alpha = 0.95f)).graphicsLayer { this.alpha = alpha.value }, contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (cs.playerDead) {
                 Text("败下阵来", color = HpRed, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                Text("败退一层，损失少量阅历和白银，装备保留。", color = TextWhite, fontSize = 16.sp)
-                Button(onClick = { engine.returnAfterDeath() }, colors = ButtonDefaults.buttonColors(containerColor = HpRed), shape = RoundedCornerShape(6.dp)) {
-                    Text("退回上一层整备", color = TextWhite, fontSize = 18.sp)
+
+                if (!showAdOptions) {
+                    Text("败退一层，损失少量阅历和白银，装备保留。", color = TextWhite, fontSize = 16.sp)
+
+                    // 广告复活按钮（优先显示）
+                    Button(
+                        onClick = { showAdOptions = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("看广告·满血复活", color = Color.Black, fontSize = 18.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Button(
+                        onClick = { engine.returnAfterDeath() },
+                        colors = ButtonDefaults.buttonColors(containerColor = HpRed),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("退回上一层整备", color = TextWhite, fontSize = 18.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = onDeath,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("返回标题", color = TextGray, fontSize = 14.sp)
+                    }
+                } else {
+                    // 广告加载/展示中
+                    Text("正在为你满血复活...", color = GoldAccent, fontSize = 16.sp)
+
+                    LaunchedEffect(Unit) {
+                        if (activity == null) {
+                            engine.returnAfterDeath()
+                            return@LaunchedEffect
+                        }
+                        AdHelper.showRewardAd(
+                            activity = activity,
+                            onRewarded = {
+                                engine.reviveByAd()
+                            },
+                            onFailed = {
+                                engine.returnAfterDeath()
+                            },
+                            onLoadStart = {
+                                // 已经在显示加载中
+                            },
+                            onComplete = {
+                                showAdOptions = false
+                            }
+                        )
+                    }
                 }
             } else {
                 Text("大获全胜！", color = GoldAccent, fontSize = 32.sp, fontWeight = FontWeight.Bold)
                 Text("${cs.expReward}阅历  ${cs.goldReward}白银", color = TextWhite, fontSize = 16.sp)
-                Button(onClick = { engine.dismissCombatResult() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00)), shape = RoundedCornerShape(6.dp)) {
-                    Text("继续探索", color = Color.Black, fontSize = 18.sp)
+
+                if (!showAdOptions) {
+                    Button(
+                        onClick = { engine.dismissCombatResult() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00)),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("继续探索", color = Color.Black, fontSize = 18.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // 双倍收益广告按钮
+                    Button(
+                        onClick = { showAdOptions = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("看广告·双倍收益", color = Color.Black, fontSize = 18.sp)
+                    }
+                } else {
+                    // 广告加载/展示中
+                    Text("正在获取双倍收益...", color = GoldAccent, fontSize = 16.sp)
+
+                    LaunchedEffect(Unit) {
+                        if (activity == null) {
+                            engine.dismissCombatResult()
+                            return@LaunchedEffect
+                        }
+                        AdHelper.showRewardAd(
+                            activity = activity,
+                            onRewarded = {
+                                engine.doubleCombatReward()
+                            },
+                            onFailed = {
+                                // 广告失败不影响游戏，直接继续
+                            },
+                            onLoadStart = {},
+                            onComplete = {
+                                showAdOptions = false
+                                engine.dismissCombatResult()
+                            }
+                        )
+                    }
                 }
             }
         }
