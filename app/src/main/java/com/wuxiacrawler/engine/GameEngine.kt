@@ -76,14 +76,20 @@ class GameEngine(private val context: Context) {
     private fun playerPronoun(): String = if (_player.value.gender == "female") "她" else "他"
 
     fun currentAreaName(floor: Int = _realm.value.floor): String {
-        val names = listOf(
-            "青石旧牢", "雨巷残门", "黑风寨道", "白骨渡口", "毒雾药窟",
-            "断剑校场", "盘丝暗廊", "星宿钩台", "龙门水寨", "金身佛堂",
-            "风雷崖", "寒霜宫道", "阎罗判堂", "血月刀冢", "无相狱心"
-        )
-        val cycle = (floor - 1) / names.size
-        val base = names[(floor - 1).coerceAtLeast(0) % names.size]
-        return if (cycle == 0) base else "$base · ${cycle + 1}巡"
+        val area = when (floor) {
+            in 1..5 -> listOf("青石旧牢", "雨巷残门", "黑风寨道", "白骨渡口", "旧牢山门")[(floor - 1).coerceIn(0, 4)]
+            in 6..15 -> listOf("毒雾药窟", "药谷废庐", "化血药池", "忘名药井", "药坛深处")[(floor - 6).coerceAtLeast(0) % 5]
+            in 16..25 -> listOf("断剑校场", "白衣剑阵", "旧誓讲武堂", "断云旗台", "枯木剑门")[(floor - 16).coerceAtLeast(0) % 5]
+            in 26..35 -> listOf("龙门旧渡", "黑水船坞", "白骨泊岸", "水寨残船", "煞罗渡口")[(floor - 26).coerceAtLeast(0) % 5]
+            in 36..45 -> listOf("金身佛堂", "长明灯殿", "锁佛偏殿", "问心钟楼", "罗汉山门")[(floor - 36).coerceAtLeast(0) % 5]
+            in 46..55 -> listOf("机关残廊", "铜轨木人阵", "机括宝库", "重铸炉心", "机关堂主室")[(floor - 46).coerceAtLeast(0) % 5]
+            in 56..65 -> listOf("星宿钩台", "命盘石阶", "白虹星桥", "天钩观星台", "红袖断命阁")[(floor - 56).coerceAtLeast(0) % 5]
+            in 66..75 -> listOf("风雷崖", "血书旧亭", "雷裂石道", "风信残坡", "黑袍崖门")[(floor - 66).coerceAtLeast(0) % 5]
+            in 76..85 -> listOf("阎罗判堂", "生死簿廊", "索命偏殿", "旧案牢房", "判官正堂")[(floor - 76).coerceAtLeast(0) % 5]
+            in 86..100 -> listOf("无相狱心", "黑镜外门", "欲念幻境", "残境回廊", "狱典阵心")[(floor - 86).coerceAtLeast(0) % 5]
+            else -> "江湖余烬 · ${(floor - 100).coerceAtLeast(1)}巡"
+        }
+        return area
     }
 
     fun currentQuestInfo(): QuestInfo {
@@ -92,11 +98,18 @@ class GameEngine(private val context: Context) {
         val chapterIndex = chapterForFloor(r.floor)
         val chapter = "第${chapterIndex}章 · ${chapterTitle(chapterIndex)}"
         val floorGoal = r.roomsPerFloor
-        val objective = when {
-            r.floor < 5 -> "追查断裂牢符，穿过${currentAreaName()}并击败本层守卫"
-            r.floor < 10 -> "寻找七派失踪线索，在${currentAreaName()}收集战利品强化自身"
-            r.floor < 15 -> "逼近暗牢阵眼，击破${currentAreaName()}的精英守卫"
-            else -> "揭开无相狱典真相，继续深入${currentAreaName()}"
+        val objective = when (chapterIndex) {
+            1 -> "追查断裂牢符，穿过${currentAreaName()}，确认沈砚旧灯与身世线索"
+            2 -> "寻找柳知秋留下的药谷痕迹，在${currentAreaName()}辨认阿照与化血药人的真相"
+            3 -> "通过断云楼旧试炼，在${currentAreaName()}查明七派并非全然无辜"
+            4 -> "渡过龙门旧水，在${currentAreaName()}追索叶沉舟与封牢船队旧案"
+            5 -> "进入金身佛堂，在${currentAreaName()}回答救一人还是救天下的问心题"
+            6 -> "穿越机关残响，在${currentAreaName()}寻找唐照夜与重铸炉的秘密"
+            7 -> "登上星宿命盘，在${currentAreaName()}打破秦红袖推演出的命数"
+            8 -> "沿风雷血书前行，在${currentAreaName()}补全沈砚与父母的旧年真相"
+            9 -> "踏入阎罗旧案，在${currentAreaName()}寻找柳知秋并面对原谅与告别"
+            10 -> "逼近无相狱心，在${currentAreaName()}毁掉复制欲望的黑镜"
+            else -> "清理暗牢余烬，继续深入${currentAreaName()}"
         }
         val progress = "身份 ${playerTitle()} · 房间 ${r.room}/${floorGoal} · 本层斩敌 ${r.currentKills} · 境界 ${MartialRealmDisplay.fromLevel(p.lvl)}"
         val story = chapterStory(chapterIndex)
@@ -461,17 +474,18 @@ class GameEngine(private val context: Context) {
     }
 
     private fun nothingEvent() {
+        val area = currentAreaName()
         addRealmLog(listOf(
-            "四处探索，空无一物……只有灯影在墙上轻轻晃动。",
-            "发现一个空宝箱，箱底刻着一行小字：来迟一步。",
-            "发现一处废弃营地，冷灰里还埋着半截烧焦的竹签。",
-            "发现一柄断剑，剑柄缠布已经被潮气泡烂。",
-            "这片区域早已被人搜刮干净，只剩几枚踩碎的瓦片。",
-            "石壁后传来水滴声，你等了片刻，并没有任何机关回应。",
-            "一阵冷风吹过，卷起几张旧符纸，又很快归于沉寂。",
-            "地上有凌乱脚印，但都在半途消失，像被暗牢吞掉。",
-            "你绕过一段塌墙，只找到一盏早已熄灭的灯。",
-            "角落里有新鲜抓痕，却没有留下任何可追的线索。"
+            "【${area}】四处探索，空无一物……只有灯影在墙上轻轻晃动。",
+            "【${area}】发现一个空宝箱，箱底刻着一行小字：来迟一步。",
+            "【${area}】发现一处废弃营地，冷灰里还埋着半截烧焦的竹签。",
+            "【${area}】发现一柄断剑，剑柄缠布已经被潮气泡烂。",
+            "【${area}】这片区域早已被人搜刮干净，只剩几枚踩碎的瓦片。",
+            "【${area}】石壁后传来水滴声，你等了片刻，并没有任何机关回应。",
+            "【${area}】一阵冷风吹过，卷起几张旧符纸，又很快归于沉寂。",
+            "【${area}】地上有凌乱脚印，但都在半途消失，像被暗牢吞掉。",
+            "【${area}】你绕过一段塌墙，只找到一盏早已熄灭的灯。",
+            "【${area}】角落里有新鲜抓痕，却没有留下任何可追的线索。"
         ).random())
     }
 
@@ -900,6 +914,50 @@ class GameEngine(private val context: Context) {
     }
 
     // ===== Enemy Generation =====
+    private fun enemyNameForArea(arch: EnemyArchetype, condition: String, floor: Int): String {
+        if (condition == "chest") return EnemyNames.MIMIC_CHEST
+        if (condition == "door") return EnemyNames.MIMIC_DOOR
+        val chapter = chapterForFloor(floor)
+        val normal = when (chapter) {
+            1 -> listOf("黑寨喽啰", "飞刀恶徒", "飞檐刺客", "荒原狼卫", "黑风狼卫")
+            2 -> listOf("化血药人", "毒窟刀奴", "赤练刀客", "碧毒刀奴", "铁布衫石奴")
+            3 -> listOf("断剑门徒", "白衣剑客", "夜行刺客", "暗弩门徒", "白衣刀客")
+            4 -> listOf("水寨刀匪", "黑甲枪卫", "蛮寨剑客", "蛮寨斧客", "蛮寨弓手")
+            5 -> listOf("明王护法", "金甲剑侍", "铁布衫石奴", "白衣刀客", "黑甲枪卫")
+            6 -> listOf("机关宝匣", "幻阵假门", "暗弩门徒", "金甲剑侍", "夜行刺客")
+            7 -> listOf("白衣剑客", "夜行刺客", "飞檐刺客", "暗弩门徒", "赤练刀客")
+            8 -> listOf("黑甲枪卫", "寒岭狼卫", "白衣刀客", "暗弩门徒", "荒原狼卫")
+            9 -> listOf("白衣刀客", "夜行刺客", "化血药人", "毒窟刀奴", "黑甲枪卫")
+            10 -> listOf("无名·堕落剑王", "血煞·疯魔刀圣", "暗影·夺魂使", "盘丝·蛛索长老", "黑袍·风雷长老")
+            else -> EnemyNames.OFFENSIVE_NORMAL + EnemyNames.DEFENSIVE_NORMAL + EnemyNames.BALANCED_NORMAL + EnemyNames.QUICK_NORMAL + EnemyNames.LETHAL_NORMAL
+        }
+        val guardian = when (chapter) {
+            1 -> listOf("霸刀·黑寨统领", "天狼·黑风寨主")
+            2 -> listOf("化血·药坛主", "赤练·刀堂主")
+            3 -> listOf("枯木·白衣门主", "无名·堕落剑王")
+            4 -> listOf("龙门·煞罗堂主", "龙骑·天摩尊者")
+            5 -> listOf("明王·金身罗汉", "镇山·铁掌帮主")
+            6 -> listOf("机括·机关堂主", "千丝·夫人")
+            7 -> listOf("天钩·星宿护法", "白虹·星宿护法")
+            8 -> listOf("黑袍·风雷长老", "铁犬·猎犬使")
+            9 -> listOf("索命·阎罗判官", "暗影·夺魂使")
+            10 -> listOf("血煞·疯魔刀圣", "无名·堕落剑王")
+            else -> EnemyNames.OFFENSIVE_GUARDIAN + EnemyNames.DEFENSIVE_GUARDIAN + EnemyNames.BALANCED_GUARDIAN + EnemyNames.QUICK_GUARDIAN + EnemyNames.LETHAL_GUARDIAN
+        }
+        val boss = when (chapter) {
+            in 1..2 -> listOf("镇山·铁掌帮主", "天狼·黑风寨主")
+            in 3..4 -> listOf("龙门·煞罗堂主", "无名·堕落剑王")
+            in 5..6 -> listOf("明王·金身罗汉", "机括·机关堂主")
+            in 7..8 -> listOf("黑袍·风雷长老", "盘丝·蛛索长老")
+            else -> listOf("血煞·疯魔刀圣", "索命·阎罗判官", "暗影·夺魂使")
+        }
+        return when (condition) {
+            "guardian" -> guardian.random()
+            "sboss" -> boss.random()
+            else -> normal.random()
+        }
+    }
+
     fun generateEnemy(condition: String = "") {
         val r=_realm.value; val arch=EnemyArchetype.entries.random()
         val maxLvl=r.floor*r.enemyLevelGap+(r.enemyBaseLevel-1); val minLvl=maxOf(1,maxLvl-(r.enemyLevelGap-1))
@@ -907,28 +965,23 @@ class GameEngine(private val context: Context) {
 
         val (name,hpB,atkB,defB,spdB,crB,cdB) = when(arch) {
             EnemyArchetype.OFFENSIVE->{
-                val nms=when(condition){"guardian"->EnemyNames.OFFENSIVE_GUARDIAN;"sboss"->EnemyNames.OFFENSIVE_BOSS;else->EnemyNames.OFFENSIVE_NORMAL}
-                val n=if(condition=="chest")EnemyNames.MIMIC_CHEST else if(condition=="door")EnemyNames.MIMIC_DOOR else nms.random()
+                val n=enemyNameForArea(arch, condition, r.floor)
                 Quintuple(n,Random.nextInt(300,371),Random.nextInt(70,101),Random.nextInt(20,51),Random.nextFloat()*0.2f+0.2f,Random.nextFloat()*3f+1f,Random.nextFloat()*1f+6.5f)
             }
             EnemyArchetype.DEFENSIVE->{
-                val nms=when(condition){"guardian"->EnemyNames.DEFENSIVE_GUARDIAN;"sboss"->EnemyNames.DEFENSIVE_BOSS;else->EnemyNames.DEFENSIVE_NORMAL}
-                val n=if(condition=="chest")EnemyNames.MIMIC_CHEST else if(condition=="door")EnemyNames.MIMIC_DOOR else nms.random()
+                val n=enemyNameForArea(arch, condition, r.floor)
                 Quintuple(n,Random.nextInt(400,501),Random.nextInt(40,71),Random.nextInt(40,71),Random.nextFloat()*0.2f+0.1f,0f,0f)
             }
             EnemyArchetype.BALANCED->{
-                val nms=when(condition){"guardian"->EnemyNames.BALANCED_GUARDIAN;"sboss"->EnemyNames.BALANCED_BOSS;else->EnemyNames.BALANCED_NORMAL}
-                val n=if(condition=="chest")EnemyNames.MIMIC_CHEST else if(condition=="door")EnemyNames.MIMIC_DOOR else nms.random()
+                val n=enemyNameForArea(arch, condition, r.floor)
                 Quintuple(n,Random.nextInt(320,421),Random.nextInt(50,81),Random.nextInt(30,61),Random.nextFloat()*0.2f+0.15f,Random.nextFloat()*1f+0.5f,Random.nextFloat()*2f+1f)
             }
             EnemyArchetype.QUICK->{
-                val nms=when(condition){"guardian"->EnemyNames.QUICK_GUARDIAN;"sboss"->EnemyNames.QUICK_BOSS;else->EnemyNames.QUICK_NORMAL}
-                val n=if(condition=="chest")EnemyNames.MIMIC_CHEST else if(condition=="door")EnemyNames.MIMIC_DOOR else nms.random()
+                val n=enemyNameForArea(arch, condition, r.floor)
                 Quintuple(n,Random.nextInt(300,371),Random.nextInt(50,81),Random.nextInt(30,61),Random.nextFloat()*0.1f+0.35f,Random.nextFloat()*3f+1f,Random.nextFloat()*3f+3f)
             }
             EnemyArchetype.LETHAL->{
-                val nms=when(condition){"guardian"->EnemyNames.LETHAL_GUARDIAN;"sboss"->EnemyNames.LETHAL_BOSS;else->EnemyNames.LETHAL_NORMAL}
-                val n=if(condition=="chest")EnemyNames.MIMIC_CHEST else if(condition=="door")EnemyNames.MIMIC_DOOR else nms.random()
+                val n=enemyNameForArea(arch, condition, r.floor)
                 Quintuple(n,Random.nextInt(300,371),Random.nextInt(70,101),Random.nextInt(20,51),Random.nextFloat()*0.2f+0.15f,Random.nextFloat()*4f+4f,Random.nextFloat()*3f+6f)
             }
         }
