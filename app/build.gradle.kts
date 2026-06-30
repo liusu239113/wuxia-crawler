@@ -140,8 +140,8 @@ dependencies {
     implementation(files("libs/jiatou/tosin-advista-adapter-1.9.2.aar"))
 
     // ========== OAID SDK（设备标识，广告归因需要） ==========
-    implementation(files("libs/oaid_sdk_1.0.25.aar"))
     implementation("com.github.gzu-liyujiang:Android_CN_OAID:4.2.9")
+    // 注：Android_CN_OAID 已涵盖 oaid_sdk 功能，不再需要本地 oaid_sdk_1.0.25.aar
 
     // ========== TapTap SDK ==========
     implementation("com.taptap.sdk:tap-core:4.10.3")
