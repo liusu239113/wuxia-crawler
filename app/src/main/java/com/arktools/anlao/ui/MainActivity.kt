@@ -70,8 +70,22 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: GameViewModel = viewModel()
             val engine = viewModel.engine
+            val context = androidx.compose.ui.platform.LocalContext.current
 
+            // 检查隐私政策状态（持久化在 DataStore）
+            val privacyManager = remember { com.arktools.anlao.adsdk.PrivacyPolicyManager(context) }
+            val privacyAccepted by privacyManager.isPrivacyAccepted.collectAsState(initial = null)
+
+            // 初始画面 = 隐私政策弹窗；如果 DataStore 显示已同意过则跳过
             var screen by remember { mutableIntStateOf(PRE_PRIVACY) }
+
+            // DataStore 加载完成后判断是否跳过隐私政策
+            LaunchedEffect(privacyAccepted) {
+                if (privacyAccepted == true) {
+                    initAllSdks()
+                    screen = PRE_LOGIN
+                }
+            }
 
             LaunchedEffect(screen) {
                 if (screen != GAME_MAIN) engine.soundManager.stopBgm()
