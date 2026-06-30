@@ -76,19 +76,36 @@ class MainActivity : ComponentActivity() {
             val privacyManager = remember { com.arktools.anlao.adsdk.PrivacyPolicyManager(context) }
             val privacyAccepted by privacyManager.isPrivacyAccepted.collectAsState(initial = null)
 
-            // 初始画面 = 隐私政策弹窗；如果 DataStore 显示已同意过则跳过
-            var screen by remember { mutableIntStateOf(PRE_PRIVACY) }
+            // 预游戏门控状态
+            var showPrivacyDialog by remember { mutableStateOf(false) }
+            var showTapLogin by remember { mutableStateOf(false) }
+            var showCompliance by remember { mutableStateOf(false) }
 
-            // DataStore 加载完成后判断是否跳过隐私政策
+            // 游戏内画面（与预游戏门控互斥）
+            var gameScreen by remember { mutableIntStateOf(GAME_TITLE) }
+
+            // Step 1: DataStore 加载后决定是否显示隐私政策
             LaunchedEffect(privacyAccepted) {
-                if (privacyAccepted == true) {
-                    initAllSdks()
-                    screen = PRE_LOGIN
+                when {
+                    privacyAccepted == null -> { /* 加载中 */ }
+                    privacyAccepted == false -> showPrivacyDialog = true
+                    privacyAccepted == true -> {
+                        initAllSdks()
+                        showTapLogin = true
+                    }
                 }
             }
 
-            LaunchedEffect(screen) {
-                if (screen != GAME_MAIN) engine.soundManager.stopBgm()
+            // Step 2: 隐私政策同意后初始化 SDK 并进入登录
+            LaunchedEffect(showPrivacyDialog) {
+                if (!showPrivacyDialog && privacyAccepted == true) {
+                    initAllSdks()
+                    showTapLogin = true
+                }
+            }
+
+            LaunchedEffect(gameScreen) {
+                if (gameScreen != GAME_MAIN) engine.soundManager.stopBgm()
             }
 
             // 后台自动存档
@@ -108,89 +125,89 @@ class MainActivity : ComponentActivity() {
                 onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
             }
 
+            // ===== 隐私政策弹窗（覆盖层，不参与 when 分支） =====
+            if (showPrivacyDialog) {
+                PrivacyPolicyDialog(
+                    appName = "暗牢江湖行",
+                    onAccepted = {
+                        Log.i("MainActivity", "Privacy policy accepted")
+                        showPrivacyDialog = false
+                        initAllSdks()
+                        showTapLogin = true
+                    },
+                    onDismiss = {
+                        finishAffinity()
+                    }
+                )
+            }
+
+            // ===== 游戏内容 =====
             Surface(color = Color(0xFF0D0D0D), modifier = Modifier.fillMaxSize()) {
                 MaterialTheme(typography = WuxiaTypography) {
-                    when (screen) {
-                        // ===== 第0步：隐私政策 =====
-                        PRE_PRIVACY -> {
-                            PrivacyPolicyDialog(
-                                appName = "暗牢江湖行",
-                                onAccepted = {
-                                    Log.i("MainActivity", "Privacy policy accepted")
-                                    // 隐私同意后初始化所有 SDK
-                                    initAllSdks()
-                                    screen = PRE_LOGIN
-                                },
-                                onDismiss = {
-                                    // 不同意隐私政策，退出应用
-                                    finishAffinity()
-                                }
-                            )
-                        }
-
-                        // ===== 第1步：TapTap 登录 =====
-                        PRE_LOGIN -> {
+                    when {
+                        showTapLogin -> {
                             TapTapLoginScreen(
                                 onLoginSuccess = { account ->
                                     Log.i("MainActivity", "TapTap login success: ${account.openId}")
+                                    showTapLogin = false
                                     ComplianceManager.startup(
                                         this@MainActivity,
                                         account.openId ?: account.unionId ?: "unknown"
                                     )
-                                    screen = PRE_COMPLIANCE
+                                    showCompliance = true
                                 }
                             )
                         }
 
-                        // ===== 第2步：防沉迷认证 =====
-                        PRE_COMPLIANCE -> {
+                        showCompliance -> {
                             ComplianceScreen(
                                 onAllowEnter = {
-                                    screen = GAME_TITLE
+                                    showCompliance = false
+                                    gameScreen = GAME_TITLE
                                 },
                                 onRetryLogin = {
                                     ComplianceManager.exit()
-                                    screen = PRE_LOGIN
+                                    showCompliance = false
+                                    showTapLogin = true
                                 }
                             )
                         }
 
                         // ===== 游戏标题画面 =====
-                        GAME_TITLE -> TitleScreen(
+                        gameScreen == GAME_TITLE -> TitleScreen(
                             viewModel = viewModel,
                             onNewGame = {
                                 engine.deleteSave()
-                                screen = GAME_CREATION
+                                gameScreen = GAME_CREATION
                             },
                             onContinue = {
                                 if (engine.loadGame()) {
-                                    screen = if (engine.player.value.prologueSeen) GAME_MAIN else GAME_PROLOGUE
+                                    gameScreen = if (engine.player.value.prologueSeen) GAME_MAIN else GAME_PROLOGUE
                                 } else {
                                     engine.deleteSave()
-                                    screen = GAME_TITLE
+                                    gameScreen = GAME_TITLE
                                 }
                             }
                         )
 
                         // ===== 游戏主界面 =====
-                        GAME_MAIN -> MainScreen(
+                        gameScreen == GAME_MAIN -> MainScreen(
                             viewModel = viewModel,
                             onDeath = {
-                                // 死亡复活广告将在 MainScreen 内部处理
-                                screen = GAME_TITLE
+                                gameScreen = GAME_TITLE
                             }
                         )
 
                         // ===== 角色创建 =====
-                        GAME_CREATION -> CreationScreen(
+                        gameScreen == GAME_CREATION -> CreationScreen(
                             viewModel = viewModel,
-                            onCreated = { screen = GAME_PROLOGUE }
+                            onCreated = { gameScreen = GAME_PROLOGUE }
                         )
 
                         // ===== 序章 =====
-                        GAME_PROLOGUE -> PrologueScreen(
+                        gameScreen == GAME_PROLOGUE -> PrologueScreen(
                             viewModel = viewModel,
-                            onFinished = { screen = GAME_MAIN }
+                            onFinished = { gameScreen = GAME_MAIN }
                         )
                     }
                 }
