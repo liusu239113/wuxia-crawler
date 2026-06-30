@@ -410,8 +410,8 @@ class GameEngine(private val context: Context) {
             "merchant" -> {
                 if (Random.nextInt(100) >= 22) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
                 else {
-                    val medCost = 120L * r.floor
-                    val weaponCost = 220L * r.floor
+                    val medCost = medicineCost(r.floor)
+                    val weaponCost = merchantWeaponCost(r.floor)
                     addRealmLog(listOf(
                         "一名蒙面游商坐在灯下，摊布上压着伤药和旧兵器。伤药需${medCost}两，旧兵器需${weaponCost}两。",
                         "破伞下的游商敲了敲药瓶，又推来一柄包浆旧兵器：伤药${medCost}两，兵器${weaponCost}两。",
@@ -422,12 +422,13 @@ class GameEngine(private val context: Context) {
             "healer" -> {
                 if (Random.nextInt(100) >= 45) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
                 else {
-                    val cost = 80L * r.floor
+                    val cost = healerCost(r.floor)
+                    val recoverPercent = healerRecoverPercent(r.floor)
                     addRealmLog(listOf(
-                        "破庙里有一位老医师，药炉火色微青：疗伤${cost}两，请教可提升少量防御。",
-                        "石阶旁坐着白眉医师，他正用银针封住一具残魂的伤口：疗伤${cost}两，请教可提升少量防御。",
-                        "药香从半掩木门后飘出，老医师抬眼示意你坐下：疗伤${cost}两，请教可提升少量防御。",
-                        "一盏温灯照着简陋药案，医师说伤口不能硬扛：疗伤${cost}两，请教可提升少量防御。"
+                        "破庙里有一位老医师，药炉火色微青：疗伤${cost}两，可恢复${recoverPercent}%气血；请教可提升少量防御。",
+                        "石阶旁坐着白眉医师，他正用银针封住一具残魂的伤口：疗伤${cost}两，可恢复${recoverPercent}%气血；请教可提升少量防御。",
+                        "药香从半掩木门后飘出，老医师抬眼示意你坐下：疗伤${cost}两，可恢复${recoverPercent}%气血；请教可提升少量防御。",
+                        "一盏温灯照着简陋药案，医师说伤口不能硬扛：疗伤${cost}两，可恢复${recoverPercent}%气血；请教可提升少量防御。"
                     ).random(), listOf("疗伤(${cost}两)", "请教(防御+1%)", "离开"))
                 }
             }
@@ -600,11 +601,26 @@ class GameEngine(private val context: Context) {
         }
     }
 
+    private fun priceScale(floor: Int = _realm.value.floor): Double {
+        val f = floor.coerceAtLeast(1).toDouble()
+        return 1.0 + f * 0.09 + f * f * 0.006
+    }
+
+    private fun medicineCost(floor: Int = _realm.value.floor): Long = (90.0 * priceScale(floor)).toLong().coerceAtLeast(90L)
+    private fun healerCost(floor: Int = _realm.value.floor): Long = (70.0 * priceScale(floor)).toLong().coerceAtLeast(70L)
+    private fun merchantWeaponCost(floor: Int = _realm.value.floor): Long = (260.0 * priceScale(floor)).toLong().coerceAtLeast(260L)
+    private fun healerRecoverPercent(floor: Int = _realm.value.floor): Int = when {
+        floor < 16 -> 100
+        floor < 36 -> 85
+        floor < 66 -> 70
+        else -> 55
+    }
+
     private fun merchantEvent(idx: Int) {
         val p = _player.value.copy()
         when (idx) {
             0 -> {
-                val cost = 120L * _realm.value.floor
+                val cost = medicineCost()
                 if (p.gold < cost) { addRealmLog("银两不足，游商收起了伤药。"); soundManager.playSfx("blocked") }
                 else {
                     p.gold -= cost
@@ -616,7 +632,7 @@ class GameEngine(private val context: Context) {
                 }
             }
             1 -> {
-                val cost = 220L * _realm.value.floor
+                val cost = merchantWeaponCost()
                 if (p.gold < cost) { addRealmLog("银两不足，游商摇头不语。"); soundManager.playSfx("blocked") }
                 else {
                     p.gold -= cost
@@ -635,13 +651,15 @@ class GameEngine(private val context: Context) {
         val p = _player.value.copy()
         when (idx) {
             0 -> {
-                val cost = 80L * _realm.value.floor
+                val cost = healerCost()
                 if (p.gold < cost) { addRealmLog("银两不足，老医师只留下一声叹息。"); soundManager.playSfx("blocked") }
                 else {
                     p.gold -= cost
-                    p.stats.hp = p.stats.hpMax
+                    val recoverPercent = healerRecoverPercent()
+                    val recover = (p.stats.hpMax * recoverPercent / 100).coerceAtLeast(1)
+                    p.stats.hp = (p.stats.hp + recover).coerceAtMost(p.stats.hpMax)
                     _player.value = p
-                    addRealmLog("老医师替你封住伤口，气血回满。")
+                    addRealmLog("老医师替你封住伤口，恢复${recover}点气血（${recoverPercent}%）。")
                     soundManager.playSfx("qi_flow")
                     saveGame()
                 }
@@ -681,7 +699,14 @@ class GameEngine(private val context: Context) {
         }
     }
 
-    fun goldDrop() { soundManager.playSfx("coin_pouch"); val amt=Random.nextInt(50,500)*_realm.value.floor; _player.value = _player.value.copy(gold = _player.value.gold + amt); addRealmLog("获得${amt}两白银。") }
+    fun goldDrop() {
+        soundManager.playSfx("coin_pouch")
+        val floor = _realm.value.floor
+        val base = Random.nextInt(60, 180)
+        val amt = (base * priceScale(floor) * Random.nextDouble(0.85, 1.25)).toLong().coerceAtLeast(50L)
+        _player.value = _player.value.copy(gold = _player.value.gold + amt)
+        addRealmLog("获得${amt}两白银。")
+    }
 
     private fun statBlessing() {
         soundManager.playSfx("qi_flow"); val p=_player.value.copy(); if(p.blessing<1)p.blessing=1
@@ -1057,7 +1082,7 @@ class GameEngine(private val context: Context) {
         val cs=_combatState.value?:return; val p=_player.value
         if(cs.playerHp<1){cs.playerHp=0;cs.playerDead=true;p.deaths++;addCombatLog("${p.name}败下阵来……");endCombat(false)}
         else if(triggerBossPhaseTwo(cs)){cs.enemyHpPercent=(cs.enemyHp.toFloat()/cs.enemyHpMax*100f)}
-        else if(cs.enemyHp<1){cs.enemyHp=0;cs.enemyDead=true;p.kills++; val r=_realm.value; r.currentKills++; _realm.value=r.copy();addCombatLog("${cs.enemyName}被击败！");addCombatLog("获得${cs.expReward}阅历。");playerExpGain(cs.expReward);addCombatLog("获得${cs.goldReward}两白银。");p.gold+=cs.goldReward;p.stats.hp+=(p.stats.hpMax*8/100);if(cs.hasDrop)createEquipPrint();calculateStats();endCombat(true);
+        else if(cs.enemyHp<1){cs.enemyHp=0;cs.enemyDead=true;p.kills++; val r=_realm.value; r.currentKills++; _realm.value=r.copy();addCombatLog("${cs.enemyName}被击败！");addCombatLog("获得${cs.expReward}阅历。");playerExpGain(cs.expReward);addCombatLog("获得${cs.goldReward}两白银。");p.gold+=cs.goldReward;if(cs.hasDrop)createEquipPrint();calculateStats();endCombat(true);
             val cr=CultivationRealm.entries.find{it.name==p.realm}?:CultivationRealm.NONE; val nr=CultivationRealm.entries.getOrNull(cr.ordinal+1)
             if(nr!=null&&p.lvl>=nr.level*10+10&&p.kills>=nr.level*5){_realmBreakthroughPending.value=true;_realmBreakthroughInfo.value=Pair(cr.displayName,nr.displayName)}
             if(p.exp.lvlGained>0){_showLevelUp.value=true;lvlupPopup()}
@@ -1246,7 +1271,15 @@ class GameEngine(private val context: Context) {
             if(!merged)stats.add(mapOf(st to v))
             i++
         }
-        val sellVal=(totalVal*3f).toInt()
+        val rarityValueMult = when (rarity) {
+            EquipmentRarity.COMMON -> 1.0f
+            EquipmentRarity.UNCOMMON -> 1.35f
+            EquipmentRarity.RARE -> 1.85f
+            EquipmentRarity.EPIC -> 2.6f
+            EquipmentRarity.LEGENDARY -> 3.8f
+            EquipmentRarity.HEIRLOOM -> 5.5f
+        }
+        val sellVal=(totalVal * (2.2f + r.floor * 0.035f) * rarityValueMult).toInt().coerceAtLeast(20)
 
         val equipTypeName = when {
             type.attr == EquipmentAttribute.DAMAGE -> "兵器"
