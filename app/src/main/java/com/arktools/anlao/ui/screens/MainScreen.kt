@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.arktools.anlao.adsdk.AdHelper
+import com.arktools.anlao.ui.components.AdLoadingOverlay
 import com.arktools.anlao.data.CombatState
 import com.arktools.anlao.config.EquipmentRarity
 import com.arktools.anlao.config.CultivationRealm
@@ -74,6 +75,7 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
 
     var tab by remember { mutableIntStateOf(0) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
+    var isAdLoading by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -1141,9 +1143,10 @@ private fun CombatResultOverlay(cs: CombatState, engine: com.arktools.anlao.engi
                                 engine.returnAfterDeath()
                             },
                             onLoadStart = {
-                                // 已经在显示加载中
+                                isAdLoading = true
                             },
                             onComplete = {
+                                isAdLoading = false
                                 showAdOptions = false
                             }
                         )
@@ -1189,8 +1192,11 @@ private fun CombatResultOverlay(cs: CombatState, engine: com.arktools.anlao.engi
                             onFailed = {
                                 // 广告失败不影响游戏，直接继续
                             },
-                            onLoadStart = {},
+                            onLoadStart = {
+                                isAdLoading = true
+                            },
                             onComplete = {
+                                isAdLoading = false
                                 showAdOptions = false
                                 engine.dismissCombatResult()
                             }
@@ -1199,6 +1205,9 @@ private fun CombatResultOverlay(cs: CombatState, engine: com.arktools.anlao.engi
                 }
             }
         }
+
+        // 广告加载中遮罩
+        AdLoadingOverlay(visible = isAdLoading)
     }
 }
 
