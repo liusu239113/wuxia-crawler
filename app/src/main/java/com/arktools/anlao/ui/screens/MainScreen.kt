@@ -158,7 +158,7 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
                 CombatOverlay(combatCs, cLog, sprite, eFlinch, pFlinch, dmgNums, engine)
             }
             if (combatCs.playerDead || realm.currentEvent == "combat_result") {
-                CombatResultOverlay(combatCs, engine, onDeath) { isAdLoading = it }
+                CombatResultOverlay(combatCs, engine, onDeath)
             }
         }
         StoryDialogue(storyDialogue, engine) { engine.dismissStoryDialogue() }
@@ -1083,18 +1083,14 @@ private fun FloatingDamageNumber(dn: com.arktools.anlao.engine.GameEngine.DmgNum
 }
 
 @Composable
-private fun CombatResultOverlay(
-    cs: CombatState,
-    engine: com.arktools.anlao.engine.GameEngine,
-    onDeath: () -> Unit,
-    onAdLoadingChanged: (Boolean) -> Unit
-) {
+private fun CombatResultOverlay(cs: CombatState, engine: com.arktools.anlao.engine.GameEngine, onDeath: () -> Unit) {
     val alpha = remember { Animatable(0f) }
     LaunchedEffect(cs.combatId, cs.playerDead, cs.enemyDead) { alpha.animateTo(1f, tween(450)) }
 
     val context = LocalContext.current
     val activity = context as? Activity
     var showAdOptions by remember { mutableStateOf(false) }
+    var isAdLoading by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize().background(BgDark.copy(alpha = 0.95f)).graphicsLayer { this.alpha = alpha.value }, contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1148,10 +1144,10 @@ private fun CombatResultOverlay(
                                 engine.returnAfterDeath()
                             },
                             onLoadStart = {
-                                onAdLoadingChanged(true)
+                                isAdLoading = true
                             },
                             onComplete = {
-                                onAdLoadingChanged(false)
+                                isAdLoading = false
                                 showAdOptions = false
                             }
                         )
@@ -1198,10 +1194,10 @@ private fun CombatResultOverlay(
                                 // 广告失败不影响游戏，直接继续
                             },
                             onLoadStart = {
-                                onAdLoadingChanged(true)
+                                isAdLoading = true
                             },
                             onComplete = {
-                                onAdLoadingChanged(false)
+                                isAdLoading = false
                                 showAdOptions = false
                                 engine.dismissCombatResult()
                             }
