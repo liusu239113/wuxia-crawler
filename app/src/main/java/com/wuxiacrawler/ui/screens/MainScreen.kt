@@ -157,7 +157,7 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
                 CombatResultOverlay(combatCs, engine, onDeath)
             }
         }
-        StoryDialogue(storyDialogue) { engine.dismissStoryDialogue() }
+        StoryDialogue(storyDialogue, engine) { engine.dismissStoryDialogue() }
         EventChoiceDialog(eventPrompt, realm, engine)
         ToastBubble(toastMessage)
     }
@@ -226,22 +226,88 @@ private fun EventChoiceDialog(prompt: com.wuxiacrawler.engine.GameEngine.EventPr
     }
 }
 
+private data class DialogueLine(val speaker: String, val content: String)
+
+private fun parseStoryDialogue(text: String): Pair<String, List<DialogueLine>> {
+    val parts = text.split("\n").map { it.trim() }
+    val title = parts.firstOrNull()?.takeIf { it.startsWith("【") } ?: "旧牢回声"
+    val body = if (parts.firstOrNull()?.startsWith("【") == true) parts.drop(1).joinToString("\n") else text
+    val lines = body.split("\n\n")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .map { raw ->
+            val index = raw.indexOf('：')
+            if (index > 0 && index <= 6) DialogueLine(raw.substring(0, index), raw.substring(index + 1).trim())
+            else DialogueLine("旁白", raw)
+        }
+    return title to lines.ifEmpty { listOf(DialogueLine("旁白", body.trim())) }
+}
+
 @Composable
-private fun StoryDialogue(text: String?, onContinue: () -> Unit) {
+private fun StoryDialogue(text: String?, engine: com.wuxiacrawler.engine.GameEngine, onFinished: () -> Unit) {
     if (text == null) return
-    Box(Modifier.fillMaxSize().padding(14.dp), contentAlignment = Alignment.BottomCenter) {
+    val (title, lines) = remember(text) { parseStoryDialogue(text) }
+    var index by remember(text) { mutableIntStateOf(0) }
+    var visibleCount by remember(text) { mutableIntStateOf(0) }
+    var finishedTyping by remember(text) { mutableStateOf(false) }
+    val line = lines[index]
+
+    LaunchedEffect(text, index) {
+        visibleCount = 0
+        finishedTyping = false
+        while (visibleCount < line.content.length) {
+            delay(26)
+            visibleCount++
+            if (visibleCount % 3 == 0) engine.soundManager.playSfx("hover")
+        }
+        finishedTyping = true
+    }
+
+    Box(
+        Modifier.fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.18f))
+            .padding(horizontal = 14.dp, vertical = 18.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
         Column(
             Modifier.fillMaxWidth()
-                .border(1.dp, GoldAccent, RoundedCornerShape(10.dp))
-                .background(BgPanel.copy(alpha = 0.96f), RoundedCornerShape(10.dp))
-                .clickable { onContinue() }
-                .padding(14.dp)
+                .border(1.dp, GoldAccent, RoundedCornerShape(14.dp))
+                .background(BgPanel.copy(alpha = 0.98f), RoundedCornerShape(14.dp))
+                .clickable {
+                    engine.soundManager.playSfx("wood_confirm")
+                    if (!finishedTyping) {
+                        visibleCount = line.content.length
+                        finishedTyping = true
+                    } else if (index < lines.lastIndex) {
+                        index++
+                    } else {
+                        onFinished()
+                    }
+                }
+                .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            Text("旧牢回声", color = GoldAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(6.dp))
-            Text(text, color = TextWhite, fontSize = 15.sp, lineHeight = 22.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(title, color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("${index + 1}/${lines.size}", color = TextGray, fontSize = 11.sp)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(line.speaker, color = GoldAccent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
-            Text("点击继续", color = TextGray, fontSize = 11.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
+            Text(
+                line.content.take(visibleCount),
+                color = TextWhite,
+                fontSize = 19.sp,
+                lineHeight = 31.sp,
+                minLines = 3
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                if (!finishedTyping) "点击显示整句" else if (index < lines.lastIndex) "点击继续" else "点击结束",
+                color = TextGray,
+                fontSize = 11.sp,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.End
+            )
         }
     }
 }

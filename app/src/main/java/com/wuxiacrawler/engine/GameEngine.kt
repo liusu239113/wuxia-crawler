@@ -62,6 +62,7 @@ class GameEngine(private val context: Context) {
 
     private val _storyDialogue = MutableStateFlow<String?>(null)
     val storyDialogue: StateFlow<String?> = _storyDialogue.asStateFlow()
+    private var resumeExploringAfterStory = false
 
     data class EventPrompt(val message: String = "", val choices: List<String> = emptyList())
     private val _eventPrompt = MutableStateFlow<EventPrompt?>(null)
@@ -717,7 +718,7 @@ class GameEngine(private val context: Context) {
         grantFloorClearReward(oldFloor)
         addRealmLog("进入【${currentAreaName(r.floor)}】。主线继续推进。")
         if (chapterForFloor(r.floor) != chapterForFloor(oldFloor)) {
-            _storyDialogue.value = "【${_player.value.name} · ${playerTitle()}】\n${chapterStory(chapterForFloor(r.floor))}"
+            showStoryDialogue("【${_player.value.name} · ${playerTitle()}】\n${chapterStory(chapterForFloor(r.floor))}")
         } else {
             storyBeatForFloor(r.floor)
         }
@@ -752,7 +753,14 @@ class GameEngine(private val context: Context) {
 
     private fun storyBeatForFloor(floor: Int) {
         val msg = detailedFloorStory(floor)
-        if (msg != null) _storyDialogue.value = "【${_player.value.name} · ${playerTitle()}】\n$msg"
+        if (msg != null) showStoryDialogue("【${_player.value.name} · ${playerTitle()}】\n$msg")
+    }
+
+    private fun showStoryDialogue(text: String) {
+        val r = _realm.value
+        resumeExploringAfterStory = r.isExploring && !r.isPaused && !r.isEventActive && !_player.value.inCombat
+        _realm.value = r.copy(isExploring = false)
+        _storyDialogue.value = text
     }
 
     private fun detailedFloorStory(floor: Int): String? = when (floor) {
@@ -860,6 +868,10 @@ class GameEngine(private val context: Context) {
 
     fun dismissStoryDialogue() {
         _storyDialogue.value = null
+        if (resumeExploringAfterStory && !_realm.value.isPaused && !_player.value.inCombat) {
+            _realm.value = _realm.value.copy(isExploring = true, isEventActive = false, currentEvent = "")
+        }
+        resumeExploringAfterStory = false
     }
 
     // ===== Enemy Generation =====
