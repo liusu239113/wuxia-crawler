@@ -29,6 +29,7 @@
     <application
         android:name="com.arktools.anlao.AnLaoApplication"
         android:allowBackup="true"
+        android:largeHeap="true"
         android:icon="@drawable/game_app_icon"
         android:label="暗牢江湖行"
         android:theme="@style/Theme.WuxiaCrawler"
