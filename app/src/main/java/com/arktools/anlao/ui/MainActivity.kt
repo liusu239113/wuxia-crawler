@@ -125,96 +125,96 @@ class MainActivity : ComponentActivity() {
                 onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
             }
 
-            // ===== 隐私政策弹窗（覆盖层，不参与 when 分支） =====
-            if (showPrivacyDialog) {
-                PrivacyPolicyDialog(
-                    appName = "暗牢江湖行",
-                    onAccepted = {
-                        Log.i("MainActivity", "Privacy policy accepted")
-                        showPrivacyDialog = false
-                        initAllSdks()
-                        showTapLogin = true
-                    },
-                    onDismiss = {
-                        finishAffinity()
-                    }
-                )
-            }
-
-            // ===== 游戏内容 =====
+            // ===== 游戏内容（含隐私弹窗叠加层） =====
             Surface(color = Color(0xFF0D0D0D), modifier = Modifier.fillMaxSize()) {
                 MaterialTheme(typography = WuxiaTypography) {
-                    when {
-                        showTapLogin -> {
-                            TapTapLoginScreen(
-                                onLoginSuccess = { account ->
-                                    Log.i("MainActivity", "TapTap login success: ${account.openId}")
-                                    showTapLogin = false
-                                    ComplianceManager.startup(
-                                        this@MainActivity,
-                                        account.openId ?: account.unionId ?: "unknown"
-                                    )
-                                    showCompliance = true
-                                }
-                            )
-                        }
+                    Box(Modifier.fillMaxSize()) {
+                        // ===== 主内容 =====
+                        when {
+                            showTapLogin -> {
+                                TapTapLoginScreen(
+                                    onLoginSuccess = { account ->
+                                        Log.i("MainActivity", "TapTap login success: ${account.openId}")
+                                        showTapLogin = false
+                                        ComplianceManager.startup(
+                                            this@MainActivity,
+                                            account.openId ?: account.unionId ?: "unknown"
+                                        )
+                                        showCompliance = true
+                                    }
+                                )
+                            }
 
-                        showCompliance -> {
-                            ComplianceScreen(
-                                onAllowEnter = {
-                                    showCompliance = false
-                                    gameScreen = GAME_TITLE
-                                },
-                                onRetryLogin = {
-                                    ComplianceManager.exit()
-                                    showCompliance = false
-                                    showTapLogin = true
-                                }
-                            )
-                        }
+                            showCompliance -> {
+                                ComplianceScreen(
+                                    onAllowEnter = {
+                                        showCompliance = false
+                                        gameScreen = GAME_TITLE
+                                    },
+                                    onRetryLogin = {
+                                        ComplianceManager.exit()
+                                        showCompliance = false
+                                        showTapLogin = true
+                                    }
+                                )
+                            }
 
-                        // ===== 游戏标题画面 =====
-                        gameScreen == GAME_TITLE -> TitleScreen(
-                            viewModel = viewModel,
-                            onNewGame = {
-                                engine.deleteSave()
-                                gameScreen = GAME_CREATION
-                            },
-                            onContinue = {
-                                if (engine.loadGame()) {
-                                    gameScreen = if (engine.player.value.prologueSeen) GAME_MAIN else GAME_PROLOGUE
-                                } else {
+                            // ===== 游戏标题画面 =====
+                            gameScreen == GAME_TITLE -> TitleScreen(
+                                viewModel = viewModel,
+                                onNewGame = {
                                     engine.deleteSave()
+                                    gameScreen = GAME_CREATION
+                                },
+                                onContinue = {
+                                    if (engine.loadGame()) {
+                                        gameScreen = if (engine.player.value.prologueSeen) GAME_MAIN else GAME_PROLOGUE
+                                    } else {
+                                        engine.deleteSave()
+                                        gameScreen = GAME_TITLE
+                                    }
+                                }
+                            )
+
+                            // ===== 游戏主界面 =====
+                            gameScreen == GAME_MAIN -> MainScreen(
+                                viewModel = viewModel,
+                                onDeath = {
                                     gameScreen = GAME_TITLE
                                 }
-                            }
-                        )
+                            )
 
-                        // ===== 游戏主界面 =====
-                        gameScreen == GAME_MAIN -> MainScreen(
-                            viewModel = viewModel,
-                            onDeath = {
-                                gameScreen = GAME_TITLE
-                            }
-                        )
+                            // ===== 角色创建 =====
+                            gameScreen == GAME_CREATION -> CreationScreen(
+                                viewModel = viewModel,
+                                onCreated = { gameScreen = GAME_PROLOGUE }
+                            )
 
-                        // ===== 角色创建 =====
-                        gameScreen == GAME_CREATION -> CreationScreen(
-                            viewModel = viewModel,
-                            onCreated = { gameScreen = GAME_PROLOGUE }
-                        )
+                            // ===== 序章 =====
+                            gameScreen == GAME_PROLOGUE -> PrologueScreen(
+                                viewModel = viewModel,
+                                onFinished = { gameScreen = GAME_MAIN }
+                            )
+                        }
 
-                        // ===== 序章 =====
-                        gameScreen == GAME_PROLOGUE -> PrologueScreen(
-                            viewModel = viewModel,
-                            onFinished = { gameScreen = GAME_MAIN }
-                        )
+                        // ===== 隐私政策弹窗（覆盖层，同一组树内） =====
+                        if (showPrivacyDialog) {
+                            PrivacyPolicyDialog(
+                                appName = "暗牢江湖行",
+                                onAccepted = {
+                                    Log.i("MainActivity", "Privacy policy accepted")
+                                    showPrivacyDialog = false
+                                    initAllSdks()
+                                    showTapLogin = true
+                                },
+                                onDismiss = {
+                                    finishAffinity()
+                                }
+                            )
+                        }
                     }
                 }
             }
-        }
-    }
-
     /**
      * 隐私政策同意后，初始化所有 SDK
      */
