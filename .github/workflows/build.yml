@@ -44,6 +44,8 @@ jobs:
             "$RELEASE_STORE_PASSWORD" "$RELEASE_KEY_ALIAS" "$RELEASE_KEY_PASSWORD" > keystore.properties
 
       - name: Build Release APK
+        env:
+          GRADLE_OPTS: '-Xmx4096m -Dorg.gradle.jvmargs=-Xmx4096m'
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Upload Release APK
