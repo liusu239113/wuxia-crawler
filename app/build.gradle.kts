@@ -48,8 +48,9 @@ android {
             check(hasReleaseKeystore) {
                 "Release signing is not configured. Create keystore.properties or configure GitHub Actions signing secrets."
             }
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             signingConfig = signingConfigs.getByName("release")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     compileOptions {
