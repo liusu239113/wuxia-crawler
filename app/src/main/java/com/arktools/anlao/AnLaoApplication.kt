@@ -29,7 +29,7 @@ class AnLaoApplication : Application() {
         AdSdkConfig.configure(
             appId = 2071828737590747137L,
             rewardVideoId = "2071835473475198977",
-            privacyPolicyUrl = "http://yanyususu.online:5555/xiaozhang.html",
+            privacyPolicyUrl = "http://yanyususu.online:5555/anlao.html",
             isDebug = BuildConfig.DEBUG
         )
     }
