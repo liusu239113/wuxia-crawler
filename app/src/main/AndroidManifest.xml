@@ -20,12 +20,6 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- 穿山甲FileProvider权限 -->
-    <permission
-        android:name="${applicationId}.openadsdk.permission.TT_PANGOLIN"
-        android:protectionLevel="signature" />
-    <uses-permission android:name="${applicationId}.openadsdk.permission.TT_PANGOLIN" />
-
     <application
         android:name="com.arktools.anlao.AnLaoApplication"
         android:allowBackup="true"
@@ -45,17 +39,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- 穿山甲 FileProvider -->
-        <provider
-            android:name="com.bytedance.sdk.openadsdk.TTFileProvider"
-            android:authorities="${applicationId}.TTFileProvider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/anythink_bk_tt_file_path" />
-        </provider>
 
         <!-- 优量汇 (GDT) FileProvider -->
         <provider
