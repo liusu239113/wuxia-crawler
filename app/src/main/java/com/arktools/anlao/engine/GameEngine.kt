@@ -555,6 +555,8 @@ class GameEngine(private val context: Context) {
                     r.isEventActive = false
                     r.currentEvent = ""
                     r.isExploring = true
+                    r.actionCounter = 0
+                    r.room = 1
                 }
             }
             else -> { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" }
@@ -1354,7 +1356,7 @@ class GameEngine(private val context: Context) {
         playerExpGain(cs.expReward)
         p.gold += cs.goldReward.toLong()
         _player.value = p
-        addCombatLog("看广告获得双倍奖励！额外+${cs.expReward}阅历，+${cs.goldReward}白银。")
+        addRealmLog("看广告获得双倍奖励！额外+${cs.expReward}阅历，+${cs.goldReward}白银。")
     }
 
     private fun lvlupPopup() {
