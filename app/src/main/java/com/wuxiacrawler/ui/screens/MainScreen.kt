@@ -503,10 +503,18 @@ private fun InventoryTab(engine: com.wuxiacrawler.engine.GameEngine, player: com
             }
             Box {
                 TextButton(onClick = { expanded = true }) { Text("批量出售", color = HpRed, fontSize = 12.sp) }
-                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                    modifier = Modifier.background(BgPanel).border(1.dp, GoldAccent, RoundedCornerShape(8.dp)),
+                    containerColor = BgPanel
+                ) {
                     (listOf("全部") + EquipmentRarity.entries.map { it.displayName }).forEach { r ->
-                        DropdownMenuItem(text = { Text(r, fontSize = 12.sp, color = RarityCol[r] ?: TextWhite) },
-                            onClick = { expanded = false; engine.sellAll(r); selected = null })
+                        DropdownMenuItem(
+                            text = { Text(r, fontSize = 12.sp, color = RarityCol[r] ?: TextWhite) },
+                            colors = MenuDefaults.itemColors(textColor = RarityCol[r] ?: TextWhite),
+                            onClick = { expanded = false; engine.sellAll(r); selected = null }
+                        )
                     }
                 }
             }

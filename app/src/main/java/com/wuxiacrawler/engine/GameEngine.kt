@@ -436,13 +436,14 @@ class GameEngine(private val context: Context) {
                 if (Random.nextInt(100) >= 45) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
                 else {
                     val cost = healerCost(r.floor)
+                    val teachCost = healerTeachCost(r.floor)
                     val recoverPercent = healerRecoverPercent(r.floor)
                     addRealmLog(listOf(
-                        "破庙里有一位老医师，药炉火色微青：疗伤${cost}两，可恢复${recoverPercent}%气血；请教可提升少量防御。",
-                        "石阶旁坐着白眉医师，他正用银针封住一具残魂的伤口：疗伤${cost}两，可恢复${recoverPercent}%气血；请教可提升少量防御。",
-                        "药香从半掩木门后飘出，老医师抬眼示意你坐下：疗伤${cost}两，可恢复${recoverPercent}%气血；请教可提升少量防御。",
-                        "一盏温灯照着简陋药案，医师说伤口不能硬扛：疗伤${cost}两，可恢复${recoverPercent}%气血；请教可提升少量防御。"
-                    ).random(), listOf("疗伤(${cost}两)", "请教(防御+1%)", "离开"))
+                        "破庙里有一位老医师，药炉火色微青：疗伤${cost}两，可恢复${recoverPercent}%气血；请教护体法需${teachCost}两。",
+                        "石阶旁坐着白眉医师，他正用银针封住一具残魂的伤口：疗伤${cost}两，可恢复${recoverPercent}%气血；请教护体法需${teachCost}两。",
+                        "药香从半掩木门后飘出，老医师抬眼示意你坐下：疗伤${cost}两，可恢复${recoverPercent}%气血；请教护体法需${teachCost}两。",
+                        "一盏温灯照着简陋药案，医师说伤口不能硬扛：疗伤${cost}两，可恢复${recoverPercent}%气血；请教护体法需${teachCost}两。"
+                    ).random(), listOf("疗伤(${cost}两)", "请教(防御+1%，${teachCost}两)", "离开"))
                 }
             }
             "manual" -> {
@@ -463,7 +464,7 @@ class GameEngine(private val context: Context) {
                 if (Random.nextInt(3) == 1) {
                     val clvl = ((r.enemyScaling - 1f) * 10).toInt()
                     val cost = (clvl * (10000.0 * (clvl * 0.5)) + 5000).toLong()
-                    addRealmLog("发现黑市悬赏！缴纳${cost}两白银可提升江湖声望。（声望${clvl}重）", listOf("缴纳", "无视"))
+                    addRealmLog("发现黑市悬赏！缴纳${cost}两白银可提升江湖声望。（当前声望${clvl}重；效果：敌人更强、经验/银两与高品质战利品机会同步提高）", listOf("缴纳", "无视"))
                 } else { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
             }
             "monarch" -> {
@@ -537,7 +538,7 @@ class GameEngine(private val context: Context) {
                     else {
                         _player.value = _player.value.copy(gold = _player.value.gold - cost)
                         r.enemyScaling += 0.1f
-                        addRealmLog("江湖声望提升，战利品品质提升。（声望${clvl}重→${clvl + 1}重）")
+                        addRealmLog("江湖声望提升。（声望${clvl}重→${clvl + 1}重；敌人强度提高，经验/银两收益与高品质战利品机会提高）")
                         soundManager.playSfx("qi_flow")
                     }
                 } else ignoreEvent()
@@ -622,6 +623,7 @@ class GameEngine(private val context: Context) {
 
     private fun medicineCost(floor: Int = _realm.value.floor): Long = (90.0 * priceScale(floor)).toLong().coerceAtLeast(90L)
     private fun healerCost(floor: Int = _realm.value.floor): Long = (70.0 * priceScale(floor)).toLong().coerceAtLeast(70L)
+    private fun healerTeachCost(floor: Int = _realm.value.floor): Long = (130.0 * priceScale(floor)).toLong().coerceAtLeast(130L)
     private fun merchantWeaponCost(floor: Int = _realm.value.floor): Long = (260.0 * priceScale(floor)).toLong().coerceAtLeast(260L)
     private fun healerRecoverPercent(floor: Int = _realm.value.floor): Int = when {
         floor < 16 -> 100
@@ -679,12 +681,17 @@ class GameEngine(private val context: Context) {
                 }
             }
             1 -> {
-                p.bonusStats.def += 1f
-                _player.value = p
-                calculateStats()
-                addRealmLog("老医师指点你运气护身，防御略有精进。")
-                soundManager.playSfx("realm_breakthrough")
-                saveGame()
+                val cost = healerTeachCost()
+                if (p.gold < cost) { addRealmLog("银两不足，老医师收起银针，不再多言。"); soundManager.playSfx("blocked") }
+                else {
+                    p.gold -= cost
+                    p.bonusStats.def += 1f
+                    _player.value = p
+                    calculateStats()
+                    addRealmLog("付出${cost}两白银，老医师指点你运气护身，防御+1%。")
+                    soundManager.playSfx("realm_breakthrough")
+                    saveGame()
+                }
             }
             else -> ignoreEvent()
         }
@@ -756,7 +763,8 @@ class GameEngine(private val context: Context) {
         _realm.value = r
         grantFloorClearReward(oldFloor)
         addRealmLog("进入【${currentAreaName(r.floor)}】。主线继续推进。")
-        if (chapterForFloor(r.floor) != chapterForFloor(oldFloor)) {
+        if (chapterForFloor(r.floor) != chapterForFloor(oldFloor) && !hasSeenStoryFloor(r.floor)) {
+            markStoryFloorSeen(r.floor)
             showStoryDialogue("【${_player.value.name} · ${playerTitle()}】\n${chapterStory(chapterForFloor(r.floor))}")
         } else {
             storyBeatForFloor(r.floor)
@@ -790,9 +798,27 @@ class GameEngine(private val context: Context) {
         if (r.floor != oldFloor) storyBeatForFloor(r.floor)
     }
 
+    private fun hasSeenStoryFloor(floor: Int): Boolean = prefs.getString("seen_story_floors", "")
+        ?.split(',')
+        ?.mapNotNull { it.toIntOrNull() }
+        ?.contains(floor) == true
+
+    private fun markStoryFloorSeen(floor: Int) {
+        val seen = prefs.getString("seen_story_floors", "")
+            ?.split(',')
+            ?.mapNotNull { it.toIntOrNull() }
+            ?.toMutableSet() ?: mutableSetOf()
+        seen.add(floor)
+        prefs.edit().putString("seen_story_floors", seen.sorted().joinToString(",")).apply()
+    }
+
     private fun storyBeatForFloor(floor: Int) {
+        if (hasSeenStoryFloor(floor)) return
         val msg = detailedFloorStory(floor)
-        if (msg != null) showStoryDialogue("【${_player.value.name} · ${playerTitle()}】\n$msg")
+        if (msg != null) {
+            markStoryFloorSeen(floor)
+            showStoryDialogue("【${_player.value.name} · ${playerTitle()}】\n$msg")
+        }
     }
 
     private fun showStoryDialogue(text: String) {
