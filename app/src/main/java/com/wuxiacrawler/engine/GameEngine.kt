@@ -306,7 +306,7 @@ class GameEngine(private val context: Context) {
             "enemy", "enemy", "enemy", "enemy",
             "nothing", "nothing", "nothing", "nothing", "nothing",
             "treasure", "route",
-            "merchant", "healer", "manual",
+            "merchant", "healer", "healer", "healer", "manual",
             "blessing", "curse", "monarch"
         )
         if (r.actionCounter > 2 && r.actionCounter < 6) types.add("nextroom")
@@ -373,30 +373,61 @@ class GameEngine(private val context: Context) {
         when(event) {
             "nextroom" -> {
                 r.currentEvent = if (r.room >= r.roomsPerFloor) "guardian_gate" else "room_gate"
-                if (r.room >= r.roomsPerFloor) addRealmLog("找到了通往下一处江湖据点的山门！护法守在门前。", listOf("进入", "无视"))
-                else addRealmLog("前方有一处江湖据点。", listOf("进入", "无视"))
+                if (r.room >= r.roomsPerFloor) {
+                    addRealmLog(listOf(
+                        "石阶尽头露出下一层山门，门环上缠着黑铁锁，护法的气息压得灯火发青。",
+                        "前方雾墙裂开一线，通往下一处江湖旧地的门已经出现，守门护法正立在门内。",
+                        "残碑后传来沉重脚步声，本层出口就在眼前，护法横兵拦路。"
+                    ).random(), listOf("进入", "无视"))
+                } else {
+                    addRealmLog(listOf(
+                        "前方有一间半塌石室，门缝里透出微弱灯影，像有人刚刚离开。",
+                        "一条侧廊通向新的江湖据点，墙上新鲜剑痕还在渗着暗红。",
+                        "破损木牌指向下一间房，牌上旧字被雨水泡开，只剩一个‘进’字清晰。",
+                        "你听见门后有锁链拖地声，一处新的据点挡在前路。"
+                    ).random(), listOf("进入", "无视"))
+                }
             }
             "treasure" -> {
                 if (Random.nextInt(100) >= 28) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
-                else addRealmLog("发现一间藏宝室，里面有一个宝箱。", listOf("打开宝箱", "无视"))
+                else addRealmLog(listOf(
+                    "石壁暗格被风吹开，里面躺着一只蒙尘木匣，锁孔处还残着新鲜划痕。",
+                    "废弃营帐下压着一只旧宝箱，箱盖微微起伏，像里面藏着活物。",
+                    "断佛掌心托着一只铜匣，匣边刻满细小警句：贪者自取。",
+                    "水渍尽头露出半截箱角，箱上封蜡还没完全剥落。"
+                ).random(), listOf("打开宝箱", "无视"))
             }
             "route" -> {
                 if (Random.nextInt(100) >= 35) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
-                else addRealmLog("前方出现三条岔路：左侧安静，右侧血腥，中路传来锁链声。", listOf("稳步前行", "冒险深入", "搜寻密道"))
+                else addRealmLog(listOf(
+                    "前方出现三条岔路：左侧安静，右侧血腥，中路传来锁链声。",
+                    "地面脚印在岔口分成三路：浅痕通向安全处，血印通向深处，墙缝里另有冷风。",
+                    "残灯照出三条路，一条铺满灰尘，一条散着腥气，一条窄得只能贴墙而行。",
+                    "旧地图在墙上剥落，只剩三处标记：缓行、险进、暗门。"
+                ).random(), listOf("稳步前行", "冒险深入", "搜寻密道"))
             }
             "merchant" -> {
                 if (Random.nextInt(100) >= 22) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
                 else {
                     val medCost = 120L * r.floor
                     val weaponCost = 220L * r.floor
-                    addRealmLog("一名蒙面游商坐在灯下，伤药需${medCost}两，旧兵器需${weaponCost}两。", listOf("买伤药(${medCost}两)", "买兵器(${weaponCost}两)", "离开"))
+                    addRealmLog(listOf(
+                        "一名蒙面游商坐在灯下，摊布上压着伤药和旧兵器。伤药需${medCost}两，旧兵器需${weaponCost}两。",
+                        "破伞下的游商敲了敲药瓶，又推来一柄包浆旧兵器：伤药${medCost}两，兵器${weaponCost}两。",
+                        "戴斗笠的货郎从暗门后探出半张脸，低声报价：疗伤药${medCost}两，旧兵器${weaponCost}两。"
+                    ).random(), listOf("买伤药(${medCost}两)", "买兵器(${weaponCost}两)", "离开"))
                 }
             }
             "healer" -> {
-                if (Random.nextInt(100) >= 18) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
+                if (Random.nextInt(100) >= 45) { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
                 else {
                     val cost = 80L * r.floor
-                    addRealmLog("破庙里有一位老医师：疗伤${cost}两，请教可提升少量防御。", listOf("疗伤(${cost}两)", "请教(防御+1%)", "离开"))
+                    addRealmLog(listOf(
+                        "破庙里有一位老医师，药炉火色微青：疗伤${cost}两，请教可提升少量防御。",
+                        "石阶旁坐着白眉医师，他正用银针封住一具残魂的伤口：疗伤${cost}两，请教可提升少量防御。",
+                        "药香从半掩木门后飘出，老医师抬眼示意你坐下：疗伤${cost}两，请教可提升少量防御。",
+                        "一盏温灯照着简陋药案，医师说伤口不能硬扛：疗伤${cost}两，请教可提升少量防御。"
+                    ).random(), listOf("疗伤(${cost}两)", "请教(防御+1%)", "离开"))
                 }
             }
             "manual" -> {
@@ -428,7 +459,18 @@ class GameEngine(private val context: Context) {
     }
 
     private fun nothingEvent() {
-        addRealmLog(listOf("四处探索，空无一物……","发现一个空的宝箱。","发现一处废弃营地。","发现一柄断剑。","这片区域早已被人搜刮干净。").random())
+        addRealmLog(listOf(
+            "四处探索，空无一物……只有灯影在墙上轻轻晃动。",
+            "发现一个空宝箱，箱底刻着一行小字：来迟一步。",
+            "发现一处废弃营地，冷灰里还埋着半截烧焦的竹签。",
+            "发现一柄断剑，剑柄缠布已经被潮气泡烂。",
+            "这片区域早已被人搜刮干净，只剩几枚踩碎的瓦片。",
+            "石壁后传来水滴声，你等了片刻，并没有任何机关回应。",
+            "一阵冷风吹过，卷起几张旧符纸，又很快归于沉寂。",
+            "地上有凌乱脚印，但都在半途消失，像被暗牢吞掉。",
+            "你绕过一段塌墙，只找到一盏早已熄灭的灯。",
+            "角落里有新鲜抓痕，却没有留下任何可追的线索。"
+        ).random())
     }
 
     private fun clearPendingEncounter() {
@@ -486,8 +528,8 @@ class GameEngine(private val context: Context) {
                 r.isEventActive = false
                 r.currentEvent = ""
             }
-            "room_gate" -> { if (idx == 0) roomTransition() else { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" } }
-            "guardian_gate" -> { if (idx == 0) guardianBattle() else { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" } }
+            "room_gate" -> { if (idx == 0) roomTransition() else skipRoomGate(r) }
+            "guardian_gate" -> { if (idx == 0) guardianBattle() else skipGuardianGate(r) }
             "monarch" -> { if (idx == 0) specialBossBattle() else { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" } }
             "floor_clear" -> {
                 if (idx == 0) advanceFloor()
@@ -503,6 +545,30 @@ class GameEngine(private val context: Context) {
         val now = _realm.value
         if (!_player.value.inCombat && now.currentEvent != "combat_result") clearPendingEncounter()
         if (!_player.value.inCombat && now.currentEvent == eventBefore && now.currentEvent != "combat_result") _realm.value = r
+    }
+
+    private fun skipRoomGate(r: RealmState) {
+        soundManager.playSfx("wood_confirm")
+        addRealmLog(listOf(
+            "你绕开这处据点，沿着墙根继续前行，身后的门声渐渐被暗牢吞没。",
+            "你没有入内，只在门外记下方位，改走另一条窄廊。",
+            "你放弃搜查这间据点，快步穿过门前阴影，继续向深处摸索。"
+        ).random())
+        r.room = (r.room + 1).coerceAtMost(r.roomsPerFloor)
+        r.actionCounter = 0
+        r.isEventActive = false
+        r.currentEvent = ""
+        _realm.value = r
+    }
+
+    private fun skipGuardianGate(r: RealmState) {
+        soundManager.playSfx("wood_confirm")
+        addRealmLog("你暂时避开守门护法，在${currentAreaName(r.floor)}外缘整备。出口仍在，但不会继续逼近。")
+        r.actionCounter = 0
+        r.isEventActive = false
+        r.currentEvent = ""
+        r.isExploring = false
+        _realm.value = r
     }
 
     private fun routeEvent(idx: Int) {
@@ -1006,7 +1072,16 @@ class GameEngine(private val context: Context) {
         val p=_player.value; _player.value = p.copy(inCombat = false)
         if(p.skills.contains("RAMPAGER")){p.baseStats.atk-=p.tempStats.atk.toInt();p.tempStats.atk=0f}
         if(p.skills.contains("BLADE_DANCE")){p.baseStats.atkSpd-=p.tempStats.atkSpd;p.tempStats.atkSpd=0f}
-        calculateStats(); saveGame()
+        calculateStats()
+        if (victory) {
+            val healed = _player.value.copy()
+            val recover = (healed.stats.hpMax * 20 / 100).coerceAtLeast(1)
+            healed.stats.hp = (healed.stats.hp + recover).coerceAtMost(healed.stats.hpMax)
+            healed.stats.hpPercent = healed.stats.hp.toFloat() / healed.stats.hpMax * 100f
+            _player.value = healed
+            addCombatLog("战斗胜利，调息片刻，恢复${recover}点气血。")
+        }
+        saveGame()
         val cs = _combatState.value
         if (victory && cs?.battleType == "guardian") {
             _realm.value = _realm.value.copy(isExploring = false, isEventActive = true, currentEvent = "floor_clear")
