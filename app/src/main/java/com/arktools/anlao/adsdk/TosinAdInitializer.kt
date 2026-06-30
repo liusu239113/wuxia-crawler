@@ -60,6 +60,10 @@ class TosinAdInitializer private constructor() {
 
         TosinSDK.instance.init(application, config, object : InitListener {
             override fun onInitFail(fail: String?) {
+                // Tosin SDK 1.1.2 内部会尝试读取一个不存在的 String resource（Resources$NotFoundException）
+                // 这是 SDK 自身的 bug，不影响后续广告加载。
+                // 标记为已初始化，避免反复重试。
+                isSdkInitialized = true
                 listener?.onInitFail(fail)
             }
 
