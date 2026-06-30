@@ -81,6 +81,28 @@
 -dontwarn com.bun.miitmdid.**
 -keep class com.taptap.sdk.** { *; }
 -dontwarn com.taptap.sdk.**
+-keep class com.bytedance.sdk.** { *; }
+-dontwarn com.bytedance.sdk.**
+-keep class com.baidu.mobads.** { *; }
+-dontwarn com.baidu.mobads.**
+-keep class com.adview.** { *; }
+-dontwarn com.adview.**
+-keep class com.beizi.** { *; }
+-dontwarn com.beizi.**
+-keep class cn.domob.** { *; }
+-dontwarn cn.domob.**
+-keep class com.funlink.** { *; }
+-dontwarn com.funlink.**
+-keep class com.jutui.** { *; }
+-dontwarn com.jutui.**
+-keep class com.mintegral.** { *; }
+-dontwarn com.mintegral.**
+-keep class com.wemob.** { *; }
+-dontwarn com.wemob.**
+-keep class com.ubix.** { *; }
+-dontwarn com.ubix.**
+-keep class com.starsads.** { *; }
+-dontwarn com.starsads.**
 -keepattributes Signature
 -keepattributes *Annotation*
 -keepattributes Exceptions
