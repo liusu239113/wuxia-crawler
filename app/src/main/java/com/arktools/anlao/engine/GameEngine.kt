@@ -1565,9 +1565,8 @@ class GameEngine(private val context: Context) {
         if(p.gold<cost){addRealmLog("银两不足，无法重铸装备。");soundManager.playSfx("blocked");return false}
         p.gold-=cost
         val reforged=createEquipment().copy(category=item.category, attribute=item.attribute, type=item.type, rarity=item.rarity, lvl=item.lvl, tier=item.tier, value=item.value)
-        val inv=parseInventory().toMutableList(); if(inv.isNotEmpty()) inv.removeAt(inv.lastIndex)
         equipped[idx]=reforged
-        _player.value=p.copy(equipped=gson.toJson(equipped), inventory=gson.toJson(inv))
+        _player.value=p.copy(equipped=gson.toJson(equipped))
         calculateStats(); addRealmLog("重铸【${item.category}】成功，词条已变化。")
         soundManager.playSfx("scroll_open"); saveGame(); return true
     }

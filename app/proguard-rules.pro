@@ -2,9 +2,12 @@
 -ignorewarnings
 -dontwarn **
 
-# Keep Compose
+# Keep Compose - 防止 R8 删除/合并 Compose 内部类导致 NoSuchMethodError
 -keep class androidx.compose.** { *; }
-# Keep Compose 动画 keyframes 方法（防止 R8 误 strip 导致 CircularProgressIndicator 崩溃）
+-keep interface androidx.compose.** { *; }
+# 强制保留 KeyframesSpec 相关类（R8 optimize 模式会合并/删除导致 CircularProgressIndicator 崩溃）
+-keep,allowobfuscation class androidx.compose.animation.core.KeyframesSpec** { *; }
+-keep,allowobfuscation class androidx.compose.animation.core.KeyframeEntity** { *; }
 -keepclassmembers class androidx.compose.animation.core.KeyframesSpec$KeyframesSpecConfig {
     *** at(...);
 }

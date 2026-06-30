@@ -590,9 +590,9 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
             }
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
-                itemsIndexed(inv, key = { i, _ -> i }) { i, item ->
+                itemsIndexed(inv, key = { _, item -> "${item.category}_${item.rarity}_${item.lvl}_${item.value}" }) { i, item ->
                     InventoryItemRow(item,
-                        onEquip = { selected = item; selectedEquippedIndex = -1; engine.equipItem(i) },
+                        onEquip = { engine.equipItem(i); selected = null },
                         onSell = { engine.sellItem(false, i); selected = null }
                     )
                 }
