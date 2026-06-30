@@ -1,4 +1,4 @@
-package com.wuxiacrawler.ui
+package com.arktools.anlao.ui
 
 import android.os.Bundle
 import android.view.WindowInsets
@@ -22,12 +22,12 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.wuxiacrawler.ui.screens.CreationScreen
-import com.wuxiacrawler.ui.screens.MainScreen
-import com.wuxiacrawler.ui.screens.PrologueScreen
-import com.wuxiacrawler.ui.screens.TitleScreen
-import com.wuxiacrawler.ui.theme.WuxiaTypography
-import com.wuxiacrawler.viewmodel.GameViewModel
+import com.arktools.anlao.ui.screens.CreationScreen
+import com.arktools.anlao.ui.screens.MainScreen
+import com.arktools.anlao.ui.screens.PrologueScreen
+import com.arktools.anlao.ui.screens.TitleScreen
+import com.arktools.anlao.ui.theme.WuxiaTypography
+import com.arktools.anlao.viewmodel.GameViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

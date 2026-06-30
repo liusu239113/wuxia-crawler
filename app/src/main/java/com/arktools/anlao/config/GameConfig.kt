@@ -1,4 +1,4 @@
-package com.wuxiacrawler.config
+package com.arktools.anlao.config
 
 object GameConfig {
     const val START_MONEY: Long = 500

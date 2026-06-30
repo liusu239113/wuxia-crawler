@@ -1,9 +1,9 @@
-package com.wuxiacrawler.viewmodel
+package com.arktools.anlao.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
-import com.wuxiacrawler.config.MartialSkill
-import com.wuxiacrawler.engine.GameEngine
+import com.arktools.anlao.config.MartialSkill
+import com.arktools.anlao.engine.GameEngine
 
 class GameViewModel(application: Application) : AndroidViewModel(application) {
     val engine = GameEngine(application)

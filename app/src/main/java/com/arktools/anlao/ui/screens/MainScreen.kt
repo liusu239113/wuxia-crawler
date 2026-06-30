@@ -1,4 +1,4 @@
-package com.wuxiacrawler.ui.screens
+package com.arktools.anlao.ui.screens
 
 import android.graphics.BitmapFactory
 import androidx.compose.animation.core.*
@@ -23,12 +23,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.wuxiacrawler.data.CombatState
-import com.wuxiacrawler.config.EquipmentRarity
-import com.wuxiacrawler.config.CultivationRealm
-import com.wuxiacrawler.config.MartialRealmDisplay
-import com.wuxiacrawler.config.MartialSect
-import com.wuxiacrawler.viewmodel.GameViewModel
+import com.arktools.anlao.data.CombatState
+import com.arktools.anlao.config.EquipmentRarity
+import com.arktools.anlao.config.CultivationRealm
+import com.arktools.anlao.config.MartialRealmDisplay
+import com.arktools.anlao.config.MartialSect
+import com.arktools.anlao.viewmodel.GameViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -165,7 +165,7 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
 
 // ==================== DIALOGS ====================
 @Composable
-private fun BreakthroughDialog(pending: Boolean, info: Pair<String, String>?, engine: com.wuxiacrawler.engine.GameEngine) {
+private fun BreakthroughDialog(pending: Boolean, info: Pair<String, String>?, engine: com.arktools.anlao.engine.GameEngine) {
     if (!pending || info == null) return
     AlertDialog(onDismissRequest = {}, containerColor = BgPanel,
         title = { Text("境界突破", color = TextWhite, fontWeight = FontWeight.Bold) },
@@ -176,7 +176,7 @@ private fun BreakthroughDialog(pending: Boolean, info: Pair<String, String>?, en
 }
 
 @Composable
-private fun LevelUpDialog(show: Boolean, upgrades: List<com.wuxiacrawler.config.UpgradeOption>, rerolls: Int, player: com.wuxiacrawler.data.PlayerEntity, engine: com.wuxiacrawler.engine.GameEngine) {
+private fun LevelUpDialog(show: Boolean, upgrades: List<com.arktools.anlao.config.UpgradeOption>, rerolls: Int, player: com.arktools.anlao.data.PlayerEntity, engine: com.arktools.anlao.engine.GameEngine) {
     if (!show || upgrades.isEmpty()) return
     AlertDialog(onDismissRequest = {}, containerColor = BgPanel,
         title = { Text("境界提升", color = TextWhite, fontWeight = FontWeight.Bold) },
@@ -198,7 +198,7 @@ private fun LevelUpDialog(show: Boolean, upgrades: List<com.wuxiacrawler.config.
 }
 
 @Composable
-private fun EventChoiceDialog(prompt: com.wuxiacrawler.engine.GameEngine.EventPrompt?, realm: com.wuxiacrawler.data.RealmState, engine: com.wuxiacrawler.engine.GameEngine) {
+private fun EventChoiceDialog(prompt: com.arktools.anlao.engine.GameEngine.EventPrompt?, realm: com.arktools.anlao.data.RealmState, engine: com.arktools.anlao.engine.GameEngine) {
     if (!realm.isEventActive || realm.currentEvent == "combat_result" || engine.player.value.inCombat || prompt == null) return
     val opts = prompt.choices.filter { it.isNotBlank() }
     if (opts.isEmpty()) return
@@ -244,7 +244,7 @@ private fun parseStoryDialogue(text: String): Pair<String, List<DialogueLine>> {
 }
 
 @Composable
-private fun StoryDialogue(text: String?, engine: com.wuxiacrawler.engine.GameEngine, onFinished: () -> Unit) {
+private fun StoryDialogue(text: String?, engine: com.arktools.anlao.engine.GameEngine, onFinished: () -> Unit) {
     if (text == null) return
     val (title, lines) = remember(text) { parseStoryDialogue(text) }
     var index by remember(text) { mutableIntStateOf(0) }
@@ -327,7 +327,7 @@ private fun ToastBubble(message: String?) {
 
 // ==================== TOP HEADER ====================
 @Composable
-private fun TopHeader(player: com.wuxiacrawler.data.PlayerEntity, muted: Boolean, onToggleMute: () -> Unit) {
+private fun TopHeader(player: com.arktools.anlao.data.PlayerEntity, muted: Boolean, onToggleMute: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().background(BgPanel).padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -387,7 +387,7 @@ private fun BottomTabs(selected: Int, onSelect: (Int) -> Unit) {
 
 // ==================== TAB 0: 江湖 ====================
 @Composable
-private fun AdventureTab(realm: com.wuxiacrawler.data.RealmState, player: com.wuxiacrawler.data.PlayerEntity, rLog: List<String>, engine: com.wuxiacrawler.engine.GameEngine) {
+private fun AdventureTab(realm: com.arktools.anlao.data.RealmState, player: com.arktools.anlao.data.PlayerEntity, rLog: List<String>, engine: com.arktools.anlao.engine.GameEngine) {
     Column(Modifier.fillMaxSize()) {
         // 迷你属性条
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
@@ -461,7 +461,7 @@ private fun combatLogColor(log: String): Color = when {
 }
 
 @Composable
-private fun QuestCard(quest: com.wuxiacrawler.engine.GameEngine.QuestInfo) {
+private fun QuestCard(quest: com.arktools.anlao.engine.GameEngine.QuestInfo) {
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)
             .border(1.dp, GoldAccent.copy(alpha = 0.75f), RoundedCornerShape(8.dp))
@@ -487,12 +487,12 @@ private fun MiniStat(label: String, value: String, color: Color) {
 
 // ==================== TAB 1: 行囊 ====================
 @Composable
-private fun InventoryTab(engine: com.wuxiacrawler.engine.GameEngine, player: com.wuxiacrawler.data.PlayerEntity, onFeedback: (String) -> Unit) {
+private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: com.arktools.anlao.data.PlayerEntity, onFeedback: (String) -> Unit) {
     val eq = engine.parseEquipped()
     val inv = engine.parseInventory()
     val activeSetBonuses = engine.activeSetBonusDescriptions()
     var expanded by remember { mutableStateOf(false) }
-    var selected by remember { mutableStateOf<com.wuxiacrawler.data.EquipmentItem?>(null) }
+    var selected by remember { mutableStateOf<com.arktools.anlao.data.EquipmentItem?>(null) }
     var selectedEquippedIndex by remember { mutableIntStateOf(-1) }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 6.dp)) {
@@ -599,7 +599,7 @@ private fun InventoryTab(engine: com.wuxiacrawler.engine.GameEngine, player: com
 }
 
 @Composable
-private fun EquipmentTotalStats(items: List<com.wuxiacrawler.data.EquipmentItem>) {
+private fun EquipmentTotalStats(items: List<com.arktools.anlao.data.EquipmentItem>) {
     val totals = linkedMapOf<String, Float>()
     items.filter { it.category.isNotBlank() }.forEach { item ->
         item.stats.forEach { sm -> sm.forEach { (k, v) -> totals[k] = (totals[k] ?: 0f) + v } }
@@ -625,7 +625,7 @@ private fun EquipmentTotalStats(items: List<com.wuxiacrawler.data.EquipmentItem>
 }
 
 @Composable
-private fun EquipmentSlot(item: com.wuxiacrawler.data.EquipmentItem?, slotName: String, modifier: Modifier, onClick: () -> Unit) {
+private fun EquipmentSlot(item: com.arktools.anlao.data.EquipmentItem?, slotName: String, modifier: Modifier, onClick: () -> Unit) {
     val border = item?.let { RarityCol[it.rarity] } ?: BorderWhite.copy(alpha = 0.45f)
     Box(
         modifier.height(58.dp).border(1.dp, border, RoundedCornerShape(6.dp)).background(BgDark, RoundedCornerShape(6.dp)).clickable { onClick() }.padding(4.dp),
@@ -644,7 +644,7 @@ private fun EquipmentSlot(item: com.wuxiacrawler.data.EquipmentItem?, slotName: 
 }
 
 @Composable
-private fun EquipmentBadge(item: com.wuxiacrawler.data.EquipmentItem, sizeDp: Int) {
+private fun EquipmentBadge(item: com.arktools.anlao.data.EquipmentItem, sizeDp: Int) {
     val color = RarityCol[item.rarity] ?: TextWhite
     val icon = equipmentIconPath(item.category)
     if (icon != null) {
@@ -725,8 +725,8 @@ private fun equipmentIconPath(category: String): String? = when (category) {
 
 @Composable
 private fun EquipmentDetail(
-    item: com.wuxiacrawler.data.EquipmentItem,
-    engine: com.wuxiacrawler.engine.GameEngine,
+    item: com.arktools.anlao.data.EquipmentItem,
+    engine: com.arktools.anlao.engine.GameEngine,
     equippedIndex: Int,
     onUnequip: () -> Unit,
     onEnhance: () -> Unit,
@@ -752,7 +752,7 @@ private fun EquipmentDetail(
 }
 
 @Composable
-private fun InventoryItemRow(item: com.wuxiacrawler.data.EquipmentItem, onEquip: () -> Unit, onSell: () -> Unit) {
+private fun InventoryItemRow(item: com.arktools.anlao.data.EquipmentItem, onEquip: () -> Unit, onSell: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 3.dp)
             .border(1.dp, (RarityCol[item.rarity] ?: BorderWhite).copy(alpha = 0.7f), RoundedCornerShape(6.dp))
@@ -774,7 +774,7 @@ private fun InventoryItemRow(item: com.wuxiacrawler.data.EquipmentItem, onEquip:
 
 // ==================== TAB 2: 角色 ====================
 @Composable
-private fun CharacterTab(player: com.wuxiacrawler.data.PlayerEntity, engine: com.wuxiacrawler.engine.GameEngine) {
+private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: com.arktools.anlao.engine.GameEngine) {
     val realm = CultivationRealm.entries.find { it.name == player.realm } ?: CultivationRealm.NONE
     val sect = MartialSect.entries.find { it.name == player.sect } ?: MartialSect.WANDERER
     val nextRealm = CultivationRealm.entries.getOrNull(realm.ordinal + 1)
@@ -910,8 +910,8 @@ private fun StatBlock(label: String, value: String) {
 // ==================== TAB 3: 设置 ====================
 @Composable
 private fun SettingsTab(
-    engine: com.wuxiacrawler.engine.GameEngine,
-    player: com.wuxiacrawler.data.PlayerEntity,
+    engine: com.arktools.anlao.engine.GameEngine,
+    player: com.arktools.anlao.data.PlayerEntity,
     muted: Boolean,
     bgmVolume: Float,
     sfxVolume: Float,
@@ -964,7 +964,7 @@ private fun SettingButton(label: String, hint: String, icon: String? = null, isD
 // ==================== COMBAT OVERLAY ====================
 @Composable
 private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eFl: Boolean, pFl: Boolean,
-                           dmgNums: List<com.wuxiacrawler.engine.GameEngine.DmgNumber>, engine: com.wuxiacrawler.engine.GameEngine) {
+                           dmgNums: List<com.arktools.anlao.engine.GameEngine.DmgNumber>, engine: com.arktools.anlao.engine.GameEngine) {
     val ctx = LocalContext.current
     val eShake by animateFloatAsState(if (eFl) 14f else 0f, spring(stiffness = Spring.StiffnessHigh), label = "enemyShake")
     val pShake by animateFloatAsState(if (pFl) -10f else 0f, spring(stiffness = Spring.StiffnessHigh), label = "playerShake")
@@ -1040,7 +1040,7 @@ private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eF
 }
 
 @Composable
-private fun FloatingDamageNumber(dn: com.wuxiacrawler.engine.GameEngine.DmgNumber, stackIndex: Int, alignment: Alignment) {
+private fun FloatingDamageNumber(dn: com.arktools.anlao.engine.GameEngine.DmgNumber, stackIndex: Int, alignment: Alignment) {
     val alpha = remember(dn.id) { Animatable(1f) }
     val lift = remember(dn.id) { Animatable(0f) }
     val scale = remember(dn.id) { Animatable(if (dn.isCrit) 1.45f else 1.15f) }
@@ -1077,16 +1077,16 @@ private fun FloatingDamageNumber(dn: com.wuxiacrawler.engine.GameEngine.DmgNumbe
 }
 
 @Composable
-private fun CombatResultOverlay(cs: CombatState, engine: com.wuxiacrawler.engine.GameEngine, onDeath: () -> Unit) {
+private fun CombatResultOverlay(cs: CombatState, engine: com.arktools.anlao.engine.GameEngine, onDeath: () -> Unit) {
     val alpha = remember { Animatable(0f) }
     LaunchedEffect(cs.combatId, cs.playerDead, cs.enemyDead) { alpha.animateTo(1f, tween(450)) }
     Box(Modifier.fillMaxSize().background(BgDark.copy(alpha = 0.95f)).graphicsLayer { this.alpha = alpha.value }, contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (cs.playerDead) {
                 Text("败下阵来", color = HpRed, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                Text("境界跌落，装备保留。", color = TextWhite, fontSize = 16.sp)
-                Button(onClick = { engine.returnAfterDeath(); onDeath() }, colors = ButtonDefaults.buttonColors(containerColor = HpRed), shape = RoundedCornerShape(6.dp)) {
-                    Text("返回江湖", color = TextWhite, fontSize = 18.sp)
+                Text("败退一层，损失少量阅历和白银，装备保留。", color = TextWhite, fontSize = 16.sp)
+                Button(onClick = { engine.returnAfterDeath() }, colors = ButtonDefaults.buttonColors(containerColor = HpRed), shape = RoundedCornerShape(6.dp)) {
+                    Text("退回上一层整备", color = TextWhite, fontSize = 18.sp)
                 }
             } else {
                 Text("大获全胜！", color = GoldAccent, fontSize = 32.sp, fontWeight = FontWeight.Bold)

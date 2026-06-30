@@ -1,4 +1,4 @@
-package com.wuxiacrawler.ui.screens
+package com.arktools.anlao.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,7 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.wuxiacrawler.viewmodel.GameViewModel
+import com.arktools.anlao.viewmodel.GameViewModel
 import kotlinx.coroutines.delay
 
 private val StoryBg = Color(0xFF0D0D0D)

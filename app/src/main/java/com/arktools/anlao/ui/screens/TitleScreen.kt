@@ -1,4 +1,4 @@
-package com.wuxiacrawler.ui.screens
+package com.arktools.anlao.ui.screens
 
 import android.graphics.BitmapFactory
 import androidx.compose.animation.core.Animatable
@@ -31,7 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.wuxiacrawler.viewmodel.GameViewModel
+import com.arktools.anlao.viewmodel.GameViewModel
 
 private val BgDark = Color(0xFF0D0D0D)
 private val BgPanel = Color(0xE617110D)

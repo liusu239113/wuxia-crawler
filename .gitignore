@@ -9,6 +9,9 @@ out/
 .gradle/
 build/
 local.properties
+keystore.properties
+release/*.jks
+release/*.keystore
 *.iml
 .idea/
 *.log

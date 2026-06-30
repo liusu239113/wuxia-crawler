@@ -1,4 +1,4 @@
-package com.wuxiacrawler.data
+package com.arktools.anlao.data
 
 data class RealmState(
     val id: Int = 1,

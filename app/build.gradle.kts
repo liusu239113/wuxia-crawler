@@ -1,25 +1,52 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hasReleaseKeystore = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+    .all { keystoreProperties.getProperty(it).isNullOrBlank().not() }
+
 android {
-    namespace = "com.wuxiacrawler"
+    namespace = "com.arktools.anlao"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.wuxiacrawler"
+        applicationId = "com.arktools.anlao"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeType = keystoreProperties.getProperty("storeType", "pkcs12")
+            }
+        }
+    }
+
     buildFeatures { compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
     buildTypes {
         release {
+            check(hasReleaseKeystore) {
+                "Release signing is not configured. Create keystore.properties or configure GitHub Actions signing secrets."
+            }
             isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

@@ -1,4 +1,4 @@
-package com.wuxiacrawler.data
+package com.arktools.anlao.data
 
 data class PlayerStats(
     var hp: Int = 500, var hpMax: Int = 500, var atk: Int = 100, var def: Int = 50,

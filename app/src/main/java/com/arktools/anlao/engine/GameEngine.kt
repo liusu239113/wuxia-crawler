@@ -1,11 +1,11 @@
-package com.wuxiacrawler.engine
+package com.arktools.anlao.engine
 
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.wuxiacrawler.config.*
-import com.wuxiacrawler.data.*
-import com.wuxiacrawler.manager.SoundManager
+import com.arktools.anlao.config.*
+import com.arktools.anlao.data.*
+import com.arktools.anlao.manager.SoundManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -462,8 +462,8 @@ class GameEngine(private val context: Context) {
             }
             "curse" -> {
                 if (Random.nextInt(3) == 1) {
-                    val clvl = ((r.enemyScaling - 1f) * 10).toInt()
-                    val cost = (clvl * (10000.0 * (clvl * 0.5)) + 5000).toLong()
+                    val clvl = reputationLevel(r)
+                    val cost = reputationCost(clvl)
                     addRealmLog("发现黑市悬赏！缴纳${cost}两白银可提升江湖声望。（当前声望${clvl}重；效果：敌人更强、经验/银两与高品质战利品机会同步提高）", listOf("缴纳", "无视"))
                 } else { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
             }
@@ -532,13 +532,13 @@ class GameEngine(private val context: Context) {
             }
             "curse" -> {
                 if (idx == 0) {
-                    val clvl = ((r.enemyScaling - 1f) * 10).toInt()
-                    val cost = (clvl * (10000.0 * (clvl * 0.5)) + 5000).toLong()
+                    val clvl = reputationLevel(r)
+                    val cost = reputationCost(clvl)
                     if (_player.value.gold < cost) { addRealmLog("银两不足。"); soundManager.playSfx("blocked") }
                     else {
                         _player.value = _player.value.copy(gold = _player.value.gold - cost)
                         r.enemyScaling += 0.1f
-                        addRealmLog("江湖声望提升。（声望${clvl}重→${clvl + 1}重；敌人强度提高，经验/银两收益与高品质战利品机会提高）")
+                        addRealmLog("江湖声望提升。（声望${clvl}重→${clvl + 1}重；敌人强度提高，经验/银两收益与高品质战利品机会提高；下次提升需${reputationCost(clvl + 1)}两）")
                         soundManager.playSfx("qi_flow")
                     }
                 } else ignoreEvent()
@@ -630,6 +630,14 @@ class GameEngine(private val context: Context) {
         floor < 36 -> 85
         floor < 66 -> 70
         else -> 55
+    }
+
+    private fun reputationLevel(r: RealmState = _realm.value): Int = ((r.enemyScaling - 1f) * 10f).roundToInt().coerceAtLeast(1)
+
+    private fun reputationCost(level: Int = reputationLevel()): Long {
+        val safeLevel = level.coerceAtLeast(1)
+        val cost = if (safeLevel == 1) 10_000.0 else 50_000.0 * Math.pow(3.0, (safeLevel - 2).toDouble())
+        return cost.toLong().coerceAtMost(9_000_000_000L)
     }
 
     private fun merchantEvent(idx: Int) {
@@ -1032,7 +1040,9 @@ class GameEngine(private val context: Context) {
         if(expCalc>1000000f)expCalc=1000000f*(0.9f+Random.nextFloat()*0.2f)
 
         val gold=(expCalc*(0.9f+Random.nextFloat()*0.2f)*1.5f).toInt()
-        val drop=Random.nextInt(1,4)==1
+        val rep = reputationLevel(r)
+        val dropChance = (34 + rep * 2).coerceAtMost(58)
+        val drop=Random.nextInt(100)<dropChance
 
         _currentEnemySprite.value=spriteMap[name]?: "slime"
         val p=_player.value
@@ -1166,7 +1176,7 @@ class GameEngine(private val context: Context) {
         val cs=_combatState.value?:return; val p=_player.value
         if(cs.playerHp<1){cs.playerHp=0;cs.playerDead=true;p.deaths++;addCombatLog("${p.name}败下阵来……");endCombat(false)}
         else if(triggerBossPhaseTwo(cs)){cs.enemyHpPercent=(cs.enemyHp.toFloat()/cs.enemyHpMax*100f)}
-        else if(cs.enemyHp<1){cs.enemyHp=0;cs.enemyDead=true;p.kills++; val r=_realm.value; r.currentKills++; _realm.value=r.copy();addCombatLog("${cs.enemyName}被击败！");addCombatLog("获得${cs.expReward}阅历。");playerExpGain(cs.expReward);addCombatLog("获得${cs.goldReward}两白银。");p.gold+=cs.goldReward;if(cs.hasDrop)createEquipPrint();calculateStats();endCombat(true);
+        else if(cs.enemyHp<1){cs.enemyHp=0;cs.enemyDead=true;p.kills++; val r=_realm.value; r.currentKills++; _realm.value=r.copy();addCombatLog("${cs.enemyName}被击败！");addCombatLog("获得${cs.expReward}阅历。");playerExpGain(cs.expReward);addCombatLog("获得${cs.goldReward}两白银。");p.gold+=cs.goldReward;if(cs.hasDrop)createEquipPrint("combat");calculateStats();endCombat(true);
             val cr=CultivationRealm.entries.find{it.name==p.realm}?:CultivationRealm.NONE; val nr=CultivationRealm.entries.getOrNull(cr.ordinal+1)
             if(nr!=null&&p.lvl>=nr.level*10+10&&p.kills>=nr.level*5){_realmBreakthroughPending.value=true;_realmBreakthroughInfo.value=Pair(cr.displayName,nr.displayName)}
             if(p.exp.lvlGained>0){_showLevelUp.value=true;lvlupPopup()}
@@ -1224,8 +1234,9 @@ class GameEngine(private val context: Context) {
         _combatState.value = null
         _eventPrompt.value = null
         _combatLog.value = emptyList()
-        _player.value = _player.value.copy(inCombat = false)
+        val p = _player.value.copy(inCombat = false)
         val r = _realm.value.copy()
+        val oldFloor = r.floor
         val oldArea = currentAreaName(r.floor)
         if (r.floor > 1) r.floor--
         r.room = 1
@@ -1235,14 +1246,39 @@ class GameEngine(private val context: Context) {
         r.isPaused = true
         r.isEventActive = false
         r.currentEvent = ""
+
+        val levelFactor = p.lvl.coerceAtLeast(1)
+        val expLossRate = (0.04f + levelFactor * 0.001f + oldFloor * 0.0005f).coerceIn(0.05f, 0.18f)
+        val goldLossRate = (0.03f + levelFactor * 0.0008f + oldFloor * 0.0004f).coerceIn(0.04f, 0.15f)
+        val expLoss = (p.exp.expCurr * expLossRate).toInt().coerceAtMost(p.exp.expCurr).coerceAtLeast(0)
+        val goldLoss = (p.gold * goldLossRate).toLong().coerceAtMost(p.gold).coerceAtLeast(0L)
+        p.exp.expCurr = (p.exp.expCurr - expLoss).coerceAtLeast(0)
+        p.exp.expCurrLvl = (p.exp.expCurrLvl - expLoss).coerceAtLeast(0)
+        p.exp.expPercent = if (p.exp.expMaxLvl > 0) p.exp.expCurrLvl.toFloat() / p.exp.expMaxLvl * 100f else 0f
+        p.gold = (p.gold - goldLoss).coerceAtLeast(0L)
+        p.stats.hp = (p.stats.hpMax * 45 / 100).coerceAtLeast(1)
+        p.stats.hpPercent = p.stats.hp.toFloat() / p.stats.hpMax * 100f
+        _player.value = p
         _realm.value = r
+        calculateStats()
+
+        val floorText = if (oldFloor > r.floor) "退回第${r.floor}层" else "仍在第${r.floor}层"
+        val lossText = buildString {
+            if (expLoss > 0) append("损失${expLoss}阅历")
+            if (goldLoss > 0) {
+                if (isNotEmpty()) append("、")
+                append("${goldLoss}两白银")
+            }
+            if (isEmpty()) append("未损失阅历和白银")
+        }
         val advice = when {
             _player.value.stats.hpMax < 800 -> "建议先在上一层搜集装备，并优先强化气血/防御装备。"
             _player.value.stats.atk < 180 -> "建议提升攻击，或购买兵器后再挑战守卫。"
             _player.value.stats.def < 100 -> "建议强化护甲、盾牌或请教老医师提升防御。"
             else -> "建议留在当前区域多刷战利品，确认血量充足后再挑战。"
         }
-        addRealmLog("你败退离开【${oldArea}】，退回【${currentAreaName(r.floor)}】整备。$advice")
+        addRealmLog("你败退离开【${oldArea}】，${floorText}整备，${lossText}，气血恢复至45%。$advice")
+        soundManager.playBgm(context, "jianghu")
         saveGame()
     }
 
@@ -1302,8 +1338,9 @@ class GameEngine(private val context: Context) {
             floor < 51 -> listOf(EquipmentRarity.RARE, EquipmentRarity.EPIC, EquipmentRarity.LEGENDARY)
             else -> listOf(EquipmentRarity.RARE, EquipmentRarity.EPIC, EquipmentRarity.LEGENDARY, EquipmentRarity.HEIRLOOM)
         }
+        val rep = reputationLevel()
         val weights = allowed.map { rarity ->
-            when (rarity) {
+            val baseWeight = when (rarity) {
                 EquipmentRarity.COMMON -> 68f
                 EquipmentRarity.UNCOMMON -> if (floor < 6) 32f else 45f
                 EquipmentRarity.RARE -> if (floor < 16) 12f else 34f
@@ -1311,6 +1348,15 @@ class GameEngine(private val context: Context) {
                 EquipmentRarity.LEGENDARY -> if (floor < 51) 6f else 14f
                 EquipmentRarity.HEIRLOOM -> 4f
             }
+            val qualityBias = when (rarity) {
+                EquipmentRarity.COMMON -> (1f - rep * 0.035f).coerceAtLeast(0.45f)
+                EquipmentRarity.UNCOMMON -> (1f - rep * 0.012f).coerceAtLeast(0.72f)
+                EquipmentRarity.RARE -> 1f + rep * 0.05f
+                EquipmentRarity.EPIC -> 1f + rep * 0.08f
+                EquipmentRarity.LEGENDARY -> 1f + rep * 0.11f
+                EquipmentRarity.HEIRLOOM -> 1f + rep * 0.14f
+            }
+            baseWeight * qualityBias
         }
         val roll = Random.nextFloat() * weights.sum()
         var acc = 0f

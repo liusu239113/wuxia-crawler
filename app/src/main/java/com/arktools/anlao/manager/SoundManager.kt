@@ -1,4 +1,4 @@
-package com.wuxiacrawler.manager
+package com.arktools.anlao.manager
 
 import android.content.Context
 import android.content.res.AssetFileDescriptor
