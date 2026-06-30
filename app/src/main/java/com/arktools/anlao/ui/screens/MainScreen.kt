@@ -506,8 +506,7 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
                 DropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
-                    modifier = Modifier.background(BgPanel).border(1.dp, GoldAccent, RoundedCornerShape(8.dp)),
-                    containerColor = BgPanel
+                    modifier = Modifier.background(BgPanel).border(1.dp, GoldAccent, RoundedCornerShape(8.dp))
                 ) {
                     (listOf("全部") + EquipmentRarity.entries.map { it.displayName }).forEach { r ->
                         DropdownMenuItem(
