@@ -3,7 +3,6 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -43,6 +42,7 @@ android {
         compose = true
         buildConfig = true
     }
+    composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
     buildTypes {
         release {
             check(hasReleaseKeystore) {
