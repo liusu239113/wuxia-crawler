@@ -141,7 +141,7 @@ dependencies {
 
     // ========== OAID SDK（设备标识，广告归因需要） ==========
     implementation(files("libs/oaid_sdk_1.0.25.aar"))
-    implementation("com.github.gzuliyujiang:oaid:1.0.25")
+    implementation("com.github.gzu-liyujiang:Android_CN_OAID:4.2.9")
 
     // ========== TapTap SDK ==========
     implementation("com.taptap.sdk:tap-core:4.10.3")
