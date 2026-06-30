@@ -1,4 +1,4 @@
-package com.arktools.anlao.ui.screens
+﻿package com.arktools.anlao.ui.screens
 
 import android.app.Activity
 import android.graphics.BitmapFactory
@@ -1083,7 +1083,12 @@ private fun FloatingDamageNumber(dn: com.arktools.anlao.engine.GameEngine.DmgNum
 }
 
 @Composable
-private fun CombatResultOverlay(cs: CombatState, engine: com.arktools.anlao.engine.GameEngine, onDeath: () -> Unit) {
+private fun CombatResultOverlay(
+    cs: CombatState,
+    engine: com.arktools.anlao.engine.GameEngine,
+    onDeath: () -> Unit,
+    onAdLoadingChanged: (Boolean) -> Unit
+) {
     val alpha = remember { Animatable(0f) }
     LaunchedEffect(cs.combatId, cs.playerDead, cs.enemyDead) { alpha.animateTo(1f, tween(450)) }
 
@@ -1143,10 +1148,10 @@ private fun CombatResultOverlay(cs: CombatState, engine: com.arktools.anlao.engi
                                 engine.returnAfterDeath()
                             },
                             onLoadStart = {
-                                isAdLoading = true
+                                onAdLoadingChanged(true)
                             },
                             onComplete = {
-                                isAdLoading = false
+                                onAdLoadingChanged(false)
                                 showAdOptions = false
                             }
                         )
