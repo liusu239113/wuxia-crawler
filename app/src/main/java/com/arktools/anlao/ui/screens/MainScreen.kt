@@ -527,7 +527,7 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
         Text("已装备 (6槽)", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
         Row(Modifier.fillMaxWidth().border(1.dp, BorderWhite, RoundedCornerShape(8.dp)).padding(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-            val slotNames = listOf("兵器", "护甲", "盾牌", "头盔", "鞋履", "饰品")
+            val slotNames = remember { listOf("兵器", "护甲", "盾牌", "头盔", "鞋履", "饰品") }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (index in 0..2) {
                     EquipmentSlot(eq.getOrNull(index)?.takeIf { it.category.isNotBlank() }, slotNames[index], Modifier.fillMaxWidth()) {
@@ -591,7 +591,7 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
             }
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
-                itemsIndexed(inv, key = { _, item -> "${item.category}_${item.rarity}_${item.lvl}_${item.value}" }) { i, item ->
+                itemsIndexed(inv, key = { i, item -> "${i}_${item.category}_${item.rarity}_${item.lvl}" }) { i, item ->
                     InventoryItemRow(item,
                         onEquip = { engine.equipItem(i); selected = null },
                         onSell = { engine.sellItem(false, i); selected = null }
@@ -883,7 +883,10 @@ private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: c
 private fun AssetImageBox(assetPath: String, sizeDp: Int, desc: String) {
     val ctx = LocalContext.current
     val bitmap = remember(assetPath) {
-        try { BitmapFactory.decodeStream(ctx.assets.open(assetPath))?.asImageBitmap() } catch (_: Exception) { null }
+        try {
+            val options = BitmapFactory.Options().apply { inSampleSize = 2 }
+            BitmapFactory.decodeStream(ctx.assets.open(assetPath), null, options)?.asImageBitmap()
+        } catch (_: Exception) { null }
     }
     Box(Modifier.size(sizeDp.dp), contentAlignment = Alignment.Center) {
         if (bitmap != null) Image(bitmap, desc, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
