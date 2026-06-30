@@ -64,7 +64,7 @@ dependencies {
     // ========== 核心框架 ==========
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation(platform("androidx.compose:compose-bom:2024.01.00"))
+    implementation(platform("androidx.compose:compose-bom:2024.09.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
@@ -94,6 +94,7 @@ dependencies {
 
     // ========== Tosin 广告 SDK Core ==========
     implementation(files("libs/tosin-ad-1.1.2.aar"))
+    implementation(files("libs/tosin-adx-2.9.65.aar"))
 
     // ========== GDT 优量汇 ==========
     implementation(files("libs/tosin-gdt-adapter-4.690.1560.aar"))
@@ -120,14 +121,12 @@ dependencies {
     implementation(files("libs/yout/tosin-adalliance-adapter-4.7.7.aar"))
 
     // ========== AdGain ==========
-    implementation(files("libs/adgain/tosin-adgainsdk-adapter-4.2.7.2.aar"))
-    implementation(files("libs/adgain/tosin-adgainbeizi-adapter-4.2.5.4.aar"))
-    implementation(files("libs/adgain/tosin-adgaingromore-adapter-4.2.7.aar"))
+    implementation(files("libs/adgain/tosin-adgainsdk-adapter-4.2.5.aar"))
+    implementation(files("libs/adgain/tosin-adgainbeizi-adapter-4.2.3.5.aar"))
+    implementation(files("libs/adgain/tosin-adgaingromore-adapter-4.2.5.aar"))
     implementation(files("libs/adgain/tosin-adgainjiguang-adapter-4.2.2.1.aar"))
-    implementation(files("libs/adgain/tosin-adgaintaku-adapter-4.2.7.aar"))
-    implementation(files("libs/adgain/tosin-adgaintobid-adapter-4.2.7.aar"))
-    implementation(files("libs/adgain/tosin-admate-adapter-4.2.7.aar"))
-    implementation(files("libs/adgain/tosin-mediatom-adapter-4.2.5.2.aar"))
+    implementation(files("libs/adgain/tosin-adgaintaku-adapter-4.2.3.2.aar"))
+    implementation(files("libs/adgain/tosin-adgaintobid-adapter-4.2.5.aar"))
 
     // ========== HX/互选 ==========
     implementation(files("libs/hx/tosin-hx-sdk-1.6.17.aar"))
