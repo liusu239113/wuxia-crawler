@@ -96,14 +96,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Step 2: 隐私政策同意后初始化 SDK 并进入登录
-            LaunchedEffect(showPrivacyDialog) {
-                if (!showPrivacyDialog && privacyAccepted == true) {
-                    initAllSdks()
-                    showTapLogin = true
-                }
-            }
-
             LaunchedEffect(gameScreen) {
                 if (gameScreen != GAME_MAIN) engine.soundManager.stopBgm()
             }
