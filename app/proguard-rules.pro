@@ -1,29 +1,6 @@
 # ========== 通用：忽略所有第三方 SDK 缺失类的警告 ==========
--dontwarn com.tosin.sdk.**
--dontwarn com.bytedance.sdk.**
--dontwarn com.qq.e.**
--dontwarn com.kwad.sdk.**
--dontwarn com.sigmob.**
--dontwarn com.anythink.**
--dontwarn com.adgain.**
--dontwarn com.hx.sdk.**
--dontwarn com.yout.sdk.**
--dontwarn com.ubix.**
--dontwarn com.wangmai.**
--dontwarn com.bun.miitmdid.**
--dontwarn com.advista.**
--dontwarn com.taptap.sdk.**
--dontwarn com.tapsdk.**
--dontwarn com.baidu.**
--dontwarn org.apache.http.**
--dontwarn org.json.**
--dontwarn dalvik.system.**
--dontwarn javax.annotation.**
--dontwarn com.android.org.conscrypt.**
--dontwarn javax.net.ssl.**
--dontwarn com.google.errorprone.annotations.**
--dontwarn kotlin.reflect.jvm.internal.**
--dontwarn kotlinx.coroutines.debug.**
+-ignorewarnings
+-dontwarn **
 
 # Keep Compose
 -keep class androidx.compose.** { *; }
