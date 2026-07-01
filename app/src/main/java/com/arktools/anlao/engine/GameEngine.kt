@@ -1601,8 +1601,8 @@ class GameEngine(private val context: Context) {
             }
         }
         _player.value = p; saveGame()
-        // 心魔变化：点燃火折子时每秒降3，无火折子时按层深增长
-        val stressChange = if (p.torchActive) -3 else (8 + _realm.value.floor / 10)
+        // 心魔：点燃火折子时不增长，没点燃时按层深增长
+        val stressChange = if (p.torchActive) 0 else (8 + _realm.value.floor / 10)
         val result = addStress(stressChange)
         if (result == "检定") resolveStressCheck()
         // 无火折子持续扣血
@@ -1645,7 +1645,7 @@ class GameEngine(private val context: Context) {
     fun buyTorch(tier: Int = 1): Boolean {
         val realmMult = (_player.value.lvl / 10 + 1).toLong()
         val basePrice = when (tier) { 1 -> 80L; 2 -> 200L; 3 -> 500L; else -> 80L }
-        val price = basePrice * realmMult
+        val price = (basePrice * realmMult).coerceAtMost(1000L)
         val p = _player.value.copy()
         if (p.gold < price) { addRealmLog("银两不足！需${price}两。"); soundManager.playSfx("blocked"); return false }
         p.gold -= price; p.torchCount += 1
@@ -1657,7 +1657,7 @@ class GameEngine(private val context: Context) {
     fun buyAntidote(tier: Int = 1): Boolean {
         val realmMult = (_player.value.lvl / 10 + 1).toLong()
         val basePrice = when (tier) { 1 -> 120L; 2 -> 300L; 3 -> 800L; else -> 120L }
-        val price = basePrice * realmMult
+        val price = (basePrice * realmMult).coerceAtMost(1000L)
         val p = _player.value.copy()
         if (p.gold < price) { addRealmLog("银两不足！需${price}两。"); soundManager.playSfx("blocked"); return false }
         p.gold -= price; p.antidoteCount += 1
