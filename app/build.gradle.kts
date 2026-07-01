@@ -45,7 +45,7 @@ android {
     composeOptions { kotlinCompilerExtensionVersion = "1.5.10" }
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
