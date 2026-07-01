@@ -1570,6 +1570,50 @@ class GameEngine(private val context: Context) {
 
     // ==================== 火折子 & 解毒散（按秒计算） ====================
 
+    private fun consumableTierName(tier: Int): String = when (tier) {
+        1 -> "精良"
+        2 -> "上乘"
+        else -> "普通"
+    }
+
+    fun torchDurationForTier(tier: Int): Int = when (tier) {
+        1 -> 60
+        2 -> 120
+        else -> 30
+    }
+
+    fun antidoteDurationForTier(tier: Int): Int = when (tier) {
+        1 -> 60
+        2 -> 120
+        else -> 30
+    }
+
+    fun torchUnitPrice(tier: Int, lvl: Int = _player.value.lvl): Long {
+        val realmMult = (lvl / 10 + 1).toLong()
+        val basePrice = when (tier) { 0 -> 80L; 1 -> 200L; 2 -> 500L; else -> 80L }
+        return (basePrice * realmMult).coerceAtMost(1000L)
+    }
+
+    fun antidoteUnitPrice(tier: Int, lvl: Int = _player.value.lvl): Long {
+        val realmMult = (lvl / 10 + 1).toLong()
+        val basePrice = when (tier) { 0 -> 120L; 1 -> 300L; 2 -> 800L; else -> 120L }
+        return (basePrice * realmMult).coerceAtMost(1000L)
+    }
+
+    private fun migrateConsumableCounts(p: PlayerEntity) {
+        if (p.torchCount > 0) {
+            p.torchCommonCount += p.torchCount
+            p.torchCount = 0
+        }
+        if (p.antidoteCount > 0) {
+            p.antidoteCommonCount += p.antidoteCount
+            p.antidoteCount = 0
+        }
+    }
+
+    private fun totalTorchCount(p: PlayerEntity): Int = p.torchCount + p.torchCommonCount + p.torchFineCount + p.torchSuperiorCount
+    private fun totalAntidoteCount(p: PlayerEntity): Int = p.antidoteCount + p.antidoteCommonCount + p.antidoteFineCount + p.antidoteSuperiorCount
+
     fun tickTorchAndStress() {
         val p = _player.value.copy()
         // 火折子按秒消耗
@@ -1615,65 +1659,99 @@ class GameEngine(private val context: Context) {
         calculateStats(); saveGame()
     }
 
-    /** 使用火折子，每个持续60秒 */
-    fun useTorch(count: Int = 1) {
+    /** 使用指定档位火折子 */
+    fun useTorch(tier: Int = 0, count: Int = 1) {
         val p = _player.value.copy()
-        val actual = count.coerceAtMost(p.torchCount)
-        if (actual <= 0) { addRealmLog("没有火折子可用。"); return }
-        p.torchCount -= actual
-        p.torchSecondsLeft += actual * 30
+        migrateConsumableCounts(p)
+        val actual = count.coerceIn(1, 20).coerceAtMost(torchCount(tier, p))
+        if (actual <= 0) { addRealmLog("没有${consumableTierName(tier)}火折子可用。"); return }
+        when (tier) {
+            1 -> p.torchFineCount -= actual
+            2 -> p.torchSuperiorCount -= actual
+            else -> p.torchCommonCount -= actual
+        }
+        val addedSeconds = actual * torchDurationForTier(tier)
+        p.torchSecondsLeft += addedSeconds
         p.torchActive = true
         _player.value = p; saveGame()
-        addRealmLog("点燃${actual}个火折子！持续${p.torchSecondsLeft}秒。")
+        addRealmLog("点燃${consumableTierName(tier)}火折子×${actual}，增加${addedSeconds}秒，剩余持续${p.torchSecondsLeft}秒。")
         soundManager.playSfx("gong_start")
     }
 
-    /** 使用解毒散，每个持续30秒 */
-    fun useAntidote(count: Int = 1) {
+    /** 使用指定档位解毒散 */
+    fun useAntidote(tier: Int = 0, count: Int = 1) {
         val p = _player.value.copy()
-        val actual = count.coerceAtMost(p.antidoteCount)
-        if (actual <= 0) { addRealmLog("没有解毒散可用。"); return }
-        p.antidoteCount -= actual
-        p.antidoteSecondsLeft += actual * 30
+        migrateConsumableCounts(p)
+        val actual = count.coerceIn(1, 20).coerceAtMost(antidoteCount(tier, p))
+        if (actual <= 0) { addRealmLog("没有${consumableTierName(tier)}解毒散可用。"); return }
+        when (tier) {
+            1 -> p.antidoteFineCount -= actual
+            2 -> p.antidoteSuperiorCount -= actual
+            else -> p.antidoteCommonCount -= actual
+        }
+        val addedSeconds = actual * antidoteDurationForTier(tier)
+        p.antidoteSecondsLeft += addedSeconds
         p.antidoteActive = true
         _player.value = p; saveGame()
-        addRealmLog("服用${actual}个解毒散！${p.antidoteSecondsLeft}秒内免疫中毒。")
+        addRealmLog("服用${consumableTierName(tier)}解毒散×${actual}，增加${addedSeconds}秒，${p.antidoteSecondsLeft}秒内免疫中毒。")
         soundManager.playSfx("qi_flow")
     }
 
     /** 商城购买火折子（价格随境界递增） */
     fun buyTorch(tier: Int = 0, count: Int = 1): Boolean {
         val actualCount = count.coerceIn(1, 20)
-        val realmMult = (_player.value.lvl / 10 + 1).toLong()
-        val basePrice = when (tier) { 0 -> 80L; 1 -> 200L; 2 -> 500L; else -> 80L }
-        val unitPrice = (basePrice * realmMult).coerceAtMost(1000L)
+        val unitPrice = torchUnitPrice(tier)
         val totalPrice = unitPrice * actualCount
         val p = _player.value.copy()
+        migrateConsumableCounts(p)
         if (p.gold < totalPrice) { addRealmLog("银两不足！需${totalPrice}两。"); soundManager.playSfx("blocked"); return false }
-        p.gold -= totalPrice; p.torchCount += actualCount
+        p.gold -= totalPrice
+        when (tier) {
+            1 -> p.torchFineCount += actualCount
+            2 -> p.torchSuperiorCount += actualCount
+            else -> p.torchCommonCount += actualCount
+        }
         _player.value = p
-        addRealmLog("购入火折子×${actualCount}，花费${totalPrice}两。"); soundManager.playSfx("purchase_success"); saveGame(); return true
+        addRealmLog("购入${consumableTierName(tier)}火折子×${actualCount}，花费${totalPrice}两。"); soundManager.playSfx("purchase_success"); saveGame(); return true
     }
 
     /** 商城购买解毒散（价格随境界递增） */
     fun buyAntidote(tier: Int = 0, count: Int = 1): Boolean {
         val actualCount = count.coerceIn(1, 20)
-        val realmMult = (_player.value.lvl / 10 + 1).toLong()
-        val basePrice = when (tier) { 0 -> 120L; 1 -> 300L; 2 -> 800L; else -> 120L }
-        val unitPrice = (basePrice * realmMult).coerceAtMost(1000L)
+        val unitPrice = antidoteUnitPrice(tier)
         val totalPrice = unitPrice * actualCount
         val p = _player.value.copy()
+        migrateConsumableCounts(p)
         if (p.gold < totalPrice) { addRealmLog("银两不足！需${totalPrice}两。"); soundManager.playSfx("blocked"); return false }
-        p.gold -= totalPrice; p.antidoteCount += actualCount
+        p.gold -= totalPrice
+        when (tier) {
+            1 -> p.antidoteFineCount += actualCount
+            2 -> p.antidoteSuperiorCount += actualCount
+            else -> p.antidoteCommonCount += actualCount
+        }
         _player.value = p
-        addRealmLog("购入解毒散×${actualCount}，花费${totalPrice}两。"); soundManager.playSfx("purchase_success"); saveGame(); return true
+        addRealmLog("购入${consumableTierName(tier)}解毒散×${actualCount}，花费${totalPrice}两。"); soundManager.playSfx("purchase_success"); saveGame(); return true
     }
 
-    /** 获取火折子库存 */
-    fun torchCount(): Int = _player.value.torchCount
+    private fun torchCount(tier: Int, p: PlayerEntity): Int = when (tier) {
+        1 -> p.torchFineCount
+        2 -> p.torchSuperiorCount
+        else -> p.torchCount + p.torchCommonCount
+    }
 
-    /** 获取解毒散库存 */
-    fun antidoteCount(): Int = _player.value.antidoteCount
+    private fun antidoteCount(tier: Int, p: PlayerEntity): Int = when (tier) {
+        1 -> p.antidoteFineCount
+        2 -> p.antidoteSuperiorCount
+        else -> p.antidoteCount + p.antidoteCommonCount
+    }
+
+    /** 获取火折子总库存 */
+    fun torchCount(): Int = totalTorchCount(_player.value)
+    fun torchCount(tier: Int): Int = torchCount(tier, _player.value)
+
+    /** 获取解毒散总库存 */
+    fun antidoteCount(): Int = totalAntidoteCount(_player.value)
+    fun antidoteCount(tier: Int): Int = antidoteCount(tier, _player.value)
 
     // ==================== 商城/铁匠铺 UI 控制 ====================
 
@@ -1994,8 +2072,9 @@ class GameEngine(private val context: Context) {
         try{
             val loadedPlayer = gson.fromJson(pj,PlayerEntity::class.java).copy(inCombat = false)
             if (MartialSect.entries.none { it.name == loadedPlayer.sect }) loadedPlayer.sect = MartialSect.WANDERER.name
-            // 旧存档兼容：Gson不会给新字段填默认值
-            if (loadedPlayer.torchCount == 0 && loadedPlayer.torchActive) loadedPlayer.torchCount = 1
+            // 旧存档兼容：Gson不会给新字段填默认值，旧的总数迁移为普通品质
+            if (loadedPlayer.torchCount == 0 && loadedPlayer.torchActive && totalTorchCount(loadedPlayer) == 0) loadedPlayer.torchCount = 1
+            migrateConsumableCounts(loadedPlayer)
             migrateEquipmentCap()
             _player.value = loadedPlayer
             _realm.value=gson.fromJson(rj,RealmState::class.java).copy(isExploring=false,isPaused=true,isEventActive=false,currentEvent="")

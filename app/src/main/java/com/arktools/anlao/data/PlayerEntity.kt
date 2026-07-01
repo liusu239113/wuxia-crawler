@@ -52,13 +52,19 @@ data class PlayerEntity(
     var stressAffliction: String = "",
     var stressVirtue: String = "",
 
-    // 火折子
+    // 火折子（torchCount 为旧存档兼容字段，新逻辑使用分档数量）
     var torchCount: Int = 0,
+    var torchCommonCount: Int = 0,
+    var torchFineCount: Int = 0,
+    var torchSuperiorCount: Int = 0,
     var torchActive: Boolean = false,
     var torchSecondsLeft: Int = 0,
 
-    // 解毒散
+    // 解毒散（antidoteCount 为旧存档兼容字段，新逻辑使用分档数量）
     var antidoteCount: Int = 0,
+    var antidoteCommonCount: Int = 0,
+    var antidoteFineCount: Int = 0,
+    var antidoteSuperiorCount: Int = 0,
     var antidoteActive: Boolean = false,
     var antidoteSecondsLeft: Int = 0,
 
