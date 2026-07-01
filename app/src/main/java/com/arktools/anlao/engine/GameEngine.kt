@@ -1557,6 +1557,21 @@ class GameEngine(private val context: Context) {
             p.antidoteSecondsLeft--
             if (p.antidoteSecondsLeft <= 0) { p.antidoteActive = false; addRealmLog("解毒散药效消散。") }
         }
+        // 毒雾伤害：5层后随机触发，每5层可能出现一次
+        val floor = _realm.value.floor
+        if (floor > 5 && !p.poisonFogActive && Random.nextInt(5) == 0) {
+            p.poisonFogActive = true; p.poisonFogTurns = 8
+            addRealmLog("毒雾弥漫！每秒损失3%气血，服用解毒散可免疫。"); soundManager.playSfx("blocked")
+        }
+        if (p.poisonFogActive) {
+            p.poisonFogTurns--
+            if (p.poisonFogTurns <= 0) { p.poisonFogActive = false; addRealmLog("毒雾逐渐散去。") }
+            else if (!p.antidoteActive) {
+                val fogDmg = (p.stats.hpMax * 3 / 100).coerceAtLeast(1)
+                p.stats.hp = (p.stats.hp - fogDmg).coerceAtLeast(1)
+                addRealmLog("毒雾侵蚀，损失${fogDmg}点气血。")
+            }
+        }
         _player.value = p; saveGame()
         // 心魔增长
         val stressGain = if (p.torchActive) 2 else 8
@@ -1579,7 +1594,7 @@ class GameEngine(private val context: Context) {
         val actual = count.coerceAtMost(p.torchCount)
         if (actual <= 0) { addRealmLog("没有火折子可用。"); return }
         p.torchCount -= actual
-        p.torchSecondsLeft += actual * 60
+        p.torchSecondsLeft += actual * 30
         p.torchActive = true
         _player.value = p; saveGame()
         addRealmLog("点燃${actual}个火折子！持续${p.torchSecondsLeft}秒。")

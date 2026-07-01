@@ -45,7 +45,7 @@ private val HpRed = Color(0xFFE40000)
 private val GoldAccent = Color(0xFFFFD700)
 
 private val RarityCol = mapOf(
-    "凡品" to Color(0xFFFFFFFF), "良品" to Color(0xFF1EFF00),
+    "凡品" to Color(0xFFFFFFFF), "良品" to BorderWhite,
     "稀有" to Color(0xFF0070DD), "史诗" to Color(0xFFA335EE),
     "传说" to Color(0xFFFFD700), "太古" to Color(0xFFE30B5C)
 )
@@ -257,7 +257,7 @@ private fun ShopItemRow(
             }
             Spacer(Modifier.weight(1f))
             Button(onClick = { onBuy(selectedTier) },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00)),
+                colors = ButtonDefaults.buttonColors(containerColor = BorderWhite),
                 shape = RoundedCornerShape(4.dp)) {
                 Text("购买 ${prices[selectedTier] * qty}两", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
@@ -355,7 +355,7 @@ private fun BlacksmithOverlay(engine: com.arktools.anlao.engine.GameEngine, play
                         Button(onClick = {
                             val ok = engine.repairEquipment(selectedSlot)
                             feedback = if (ok) "修复成功！" else "银两不足（需${repairCost}两）"
-                        }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)), shape = RoundedCornerShape(6.dp)) {
+                        }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = BorderWhite), shape = RoundedCornerShape(6.dp)) {
                             Text("修复 ${repairCost}两  恢复耐久至满", color = TextWhite, fontSize = 11.sp)
                         }
                     }
@@ -387,7 +387,7 @@ private fun BreakthroughDialog(pending: Boolean, info: Pair<String, String>?, en
         confirmButton = {
             if (!showAdStage) {
                 Button(onClick = { engine.confirmBreakthrough(); showAdStage = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00))) { Text("突破！", color = Color.Black) }
+                    colors = ButtonDefaults.buttonColors(containerColor = BorderWhite)) { Text("突破！", color = Color.Black) }
             } else {
                 Button(
                     onClick = {
@@ -692,28 +692,33 @@ private fun AdventureTab(realm: com.arktools.anlao.data.RealmState, player: com.
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             MiniStat("心魔", "${player.stress}/200",
                 if (player.stress >= 100) HpRed else if (player.stress >= 50) Color(0xFFFFA000) else TextGray)
-            if (player.torchActive) {
-                Column(Modifier.weight(1f)) {
-                    Text("火折", color = Color(0xFFFFA000), fontSize = 8.sp)
-                    Box(Modifier.fillMaxWidth().height(6.dp).background(Color(0xFF333333), RoundedCornerShape(3.dp))) {
-                        Box(Modifier.fillMaxWidth(player.torchSecondsLeft.toFloat() / 300f).fillMaxHeight()
-                            .background(Color(0xFFFFA000), RoundedCornerShape(3.dp)))
+            // 火折子状态
+            Row(Modifier.width(70.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("火折", color = if (player.torchActive) Color(0xFFFFA000) else if (engine.torchCount() > 0) Color(0xFFFFA000) else TextGray, fontSize = 8.sp)
+                if (player.torchActive) {
+                    Box(Modifier.width(30.dp).height(5.dp).background(Color(0xFF333333), RoundedCornerShape(2.dp))) {
+                        Box(Modifier.fillMaxWidth((player.torchSecondsLeft.toFloat() / 30f).coerceIn(0f, 1f)).fillMaxHeight()
+                            .background(Color(0xFFFFA000), RoundedCornerShape(2.dp)))
                     }
+                } else {
+                    Text("×${engine.torchCount()}", color = TextGray, fontSize = 8.sp)
                 }
-            } else {
-                MiniStat("火折", "未点燃", TextGray)
             }
-            if (player.antidoteActive) {
-                Column(Modifier.weight(1f)) {
-                    Text("解毒", color = Color(0xFF4CAF50), fontSize = 8.sp)
-                    Box(Modifier.fillMaxWidth().height(6.dp).background(Color(0xFF333333), RoundedCornerShape(3.dp))) {
-                        Box(Modifier.fillMaxWidth(player.antidoteSecondsLeft.toFloat() / 120f).fillMaxHeight()
-                            .background(Color(0xFF4CAF50), RoundedCornerShape(3.dp)))
+            // 解毒散状态
+            Row(Modifier.width(70.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("解毒", color = if (player.antidoteActive) Color(0xFF4CAF50) else if (engine.antidoteCount() > 0) Color(0xFF4CAF50) else TextGray, fontSize = 8.sp)
+                if (player.antidoteActive) {
+                    Box(Modifier.width(30.dp).height(5.dp).background(Color(0xFF333333), RoundedCornerShape(2.dp))) {
+                        Box(Modifier.fillMaxWidth((player.antidoteSecondsLeft.toFloat() / 30f).coerceIn(0f, 1f)).fillMaxHeight()
+                            .background(Color(0xFF4CAF50), RoundedCornerShape(2.dp)))
                     }
+                } else {
+                    Text("×${engine.antidoteCount()}", color = TextGray, fontSize = 8.sp)
                 }
             }
             if (player.stressAffliction.isNotEmpty()) MiniStat("特质", player.stressAffliction, HpRed)
             if (player.stressVirtue.isNotEmpty()) MiniStat("特质", player.stressVirtue, Color(0xFF4CAF50))
+            if (player.poisonFogActive) MiniStat("毒雾", "${player.poisonFogTurns}s", Color(0xFF9C27B0))
         }
 
         QuestCard(engine.currentQuestInfo())
@@ -1148,7 +1153,7 @@ private fun EquipmentDetailDialog(item: com.arktools.anlao.data.EquipmentItem, o
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onEquip() }, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00)),
+                    colors = ButtonDefaults.buttonColors(containerColor = BorderWhite),
                     shape = RoundedCornerShape(6.dp)) { Text("装备", color = Color.Black, fontSize = 13.sp) }
                 Button(onClick = onDismiss, modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)),
@@ -1220,7 +1225,7 @@ private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: c
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = { engine.openShop() }, modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B6914)),
+                colors = ButtonDefaults.buttonColors(containerColor = BorderWhite),
                 shape = RoundedCornerShape(6.dp)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     AssetImageBox("ui/icons/shop.png", 28, "商城")
@@ -1228,7 +1233,7 @@ private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: c
                 }
             }
             Button(onClick = { engine.openBlacksmith() }, modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B4226)),
+                colors = ButtonDefaults.buttonColors(containerColor = BorderWhite),
                 shape = RoundedCornerShape(6.dp)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     AssetImageBox("ui/icons/blacksmith.png", 28, "铁匠铺")
@@ -1577,7 +1582,7 @@ private fun CombatResultOverlay(cs: CombatState, engine: com.arktools.anlao.engi
                 if (!showAdOptions) {
                     Button(
                         onClick = { engine.dismissCombatResult() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00)),
+                        colors = ButtonDefaults.buttonColors(containerColor = BorderWhite),
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text("继续探索", color = Color.Black, fontSize = 18.sp)

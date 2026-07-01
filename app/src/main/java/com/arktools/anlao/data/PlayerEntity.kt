@@ -60,7 +60,11 @@ data class PlayerEntity(
     // 解毒散
     var antidoteCount: Int = 0,
     var antidoteActive: Boolean = false,
-    var antidoteSecondsLeft: Int = 0
+    var antidoteSecondsLeft: Int = 0,
+
+    // 毒雾
+    var poisonFogActive: Boolean = false,
+    var poisonFogTurns: Int = 0
 )
 
 data class EquipmentItem(
