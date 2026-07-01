@@ -1,0 +1,245 @@
+Info
+07-01 14:09:48.111
+8514
+udt-scrcpy-server
+send heartbeat back
+Debug
+07-01 14:10:03.067
+3229
+Launcher.ItemClickHandler
+onClick, tag = WorkspaceItemInfo(@d763707id=2842 type=APP container=desktop screen=3 cell(2,5) span(1,1) minSpan(1,1) rank=0 user=UserHandle{0} title=暗牢江湖行 installStateType=-1 installSource=null component=ComponentInfo{com.arktools.anlao/com.arktools.anlao.ui.MainActivity}, update=false, limit=false, runtime=110000000, status=0 intent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=com.arktools.anlao/.ui.MainActivity bnds=[540,1572][786,1863] })
+Info
+07-01 14:10:03.075
+2257
+ActivityTaskManager
+START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=com.arktools.anlao/.ui.MainActivity bnds=[540,1572][786,1863] mCallingUid=10022} from uid 10022 and from pid 3229
+Info
+07-01 14:10:03.088
+2257
+am_create_activity
+[0,224381032,19,com.arktools.anlao/.ui.MainActivity,android.intent.action.MAIN,NULL,NULL,270532608]
+Debug
+07-01 14:10:03.096
+3229
+Launcher.LauncherStatistics
+onEvent. event:open_app info:{has_badge=no, packageName=com.arktools.anlao}
+Info
+07-01 14:10:03.105
+2257
+MotorManagerService
+notifyActivityChanged: mBackgroudPkg = com.oppo.launcher mFocusPkg = com.arktools.anlao mIsSplitMode = false mBackActivity = com.oppo.launcher.Launcher mFocusActivity = com.arktools.anlao.ui.MainActivity
+Debug
+07-01 14:10:03.110
+2257
+WindowManager
+Add to mViews: DecorView@b4da0ac[anlao], this = android.view.WindowManagerGlobal@59abb3b,pkg= com.arktools.anlao
+Debug
+07-01 14:10:03.114
+2257
+OppoDisplayPolicy
+com.arktools.anlao, no change cutoutMode: 0
+Debug
+07-01 14:10:03.123
+2257
+OppoDisplayPolicy
+com.arktools.anlao, no change cutoutMode: 0
+Debug
+07-01 14:10:03.126
+937
+DispPerfService
+get proc=Splash Screen com.arktools.anlao#0 none
+Debug
+07-01 14:10:03.140
+937
+DispPerfService
+onframeavailable pid=2257, slot=0, seq=310, ret=0, name=system_server:Splash Screen com.arktools.anlao#0
+Info
+07-01 14:10:03.162
+2257
+am_proc_start
+[0,29149,10000,com.arktools.anlao,activity,{com.arktools.anlao/com.arktools.anlao.ui.MainActivity}]
+Info
+07-01 14:10:03.162
+2257
+ActivityManager
+Start proc 29149:com.arktools.anlao/u0a0 for activity {com.arktools.anlao/com.arktools.anlao.ui.MainActivity}
+Info
+07-01 14:10:03.185
+2257
+am_proc_bound
+[0,29149,com.arktools.anlao]
+Info
+07-01 14:10:03.193
+2257
+am_restart_activity
+[0,224381032,19,com.arktools.anlao/.ui.MainActivity]
+Info
+07-01 14:10:03.196
+2257
+ColorAppSwitchManagerService
+appswitch hasProcess ActivityRecord{d5fc868 u0 com.arktools.anlao/.ui.MainActivity t19}
+Info
+07-01 14:10:03.197
+2257
+ColorAppSwitchManagerService
+appswitch hasProcess ActivityRecord{d5fc868 u0 com.arktools.anlao/.ui.MainActivity t19}
+Info
+07-01 14:10:03.198
+2257
+ColorZoomWindowManagerService
+topResumedActivityChanged start r = ActivityRecord{d5fc868 u0 com.arktools.anlao/.ui.MainActivity t19}
+Info
+07-01 14:10:03.199
+2257
+ColorHansManager
+ColorHansManager : resume pkg: com.arktools.anlao, uid:10000, prev pkg: com.oppo.launcher, prev uid: 10022
+Warn
+07-01 14:10:03.199
+2257
+ColorAccessControlManagerService
+notifyZoomWindowExit: stack=ActivityStack{db13967 stackId=14 type=standard mode=fullscreen visible=true translucent=false, 1 tasks} windowMode=1 topActivity=ActivityRecord{d5fc868 u0 com.arktools.anlao/.ui.MainActivity t19} toFullScreen = true
+Info
+07-01 14:10:03.202
+2257
+am_set_resumed_activity
+[0,com.arktools.anlao/.ui.MainActivity,minimalResumeActivityLocked]
+Info
+07-01 14:10:03.205
+2747
+DCS-BackgroundAppData
+sendAppBgEvent: has no pkgName=com.arktools.anlao
+Debug
+07-01 14:10:03.217
+2257
+OppoOomAjusterHelper
+TOP_APP is ProcessRecord{aadea2d 29149:com.arktools.anlao/u0a0} uid is 10000
+Debug
+07-01 14:10:03.244
+2257
+ColorAppListInterceptManager
+shouldFilterTask::packageName = com.arktools.anlao
+Error
+07-01 14:10:03.327
+29149
+Perf
+Fail to get file list com.arktools.anlao
+Debug
+07-01 14:10:03.349
+29149
+ActivityLifecycle
+onActivityCreated [com.arktools.anlao.ui.MainActivity]
+Error
+07-01 14:10:03.368
+29149
+AndroidRuntime
+Process: com.arktools.anlao, PID: 29149
+Error
+07-01 14:10:03.368
+29149
+AndroidRuntime
+at com.arktools.anlao.ui.MainActivity.onCreate(MainActivity.kt:74)
+Error
+07-01 14:10:03.368
+29149
+AnLaoApplication
+at com.arktools.anlao.ui.MainActivity.onCreate(MainActivity.kt:74)
+Info
+07-01 14:10:03.372
+2257
+am_crash
+[29149,0,com.arktools.anlao,685293124,java.lang.NoSuchMethodError,No virtual method getInsetsController()Landroid/view/WindowInsetsController; in class Landroid/view/Window; or its super classes (declaration of 'android.view.Window' appears in /system/framework/framework.jar!classes3.dex),MainActivity.kt,74]
+Warn
+07-01 14:10:03.377
+2257
+ActivityTaskManager
+Force finishing activity com.arktools.anlao/.ui.MainActivity
+Info
+07-01 14:10:03.377
+2257
+am_finish_activity
+[0,224381032,19,com.arktools.anlao/.ui.MainActivity,force-crash]
+Info
+07-01 14:10:03.382
+2257
+am_pause_activity
+[0,224381032,com.arktools.anlao/.ui.MainActivity,userLeaving=false,finish-request]
+Info
+07-01 14:10:03.386
+2257
+sysui_multi_action
+[757,1144,758,7,806,com.arktools.anlao,871,com.arktools.anlao.ui.MainActivity]
+Info
+07-01 14:10:03.436
+2257
+ActivityManager
+Process com.arktools.anlao (pid 29149) has died: vis+99 TOP
+Info
+07-01 14:10:03.439
+2257
+am_proc_died
+[0,29149,com.arktools.anlao,199,2]
+Error
+07-01 14:10:03.442
+3266
+SafeCenter.DWB.ActivityMonitor
+onProcessDied com.arktools.anlao
+Info
+07-01 14:10:03.443
+2747
+DCS-BackgroundAppData
+sendAppBgEvent: has no pkgName=com.arktools.anlao
+Info
+07-01 14:10:03.449
+2257
+MotorManagerService
+notifyActivityChanged: mBackgroudPkg = com.arktools.anlao mFocusPkg = com.oppo.launcher mIsSplitMode = false mBackActivity = mFocusActivity = com.oppo.launcher.Launcher
+Info
+07-01 14:10:03.480
+2257
+OppoPhoneWindowManager
+KeyLockModeReceiver KeyLockMode: 0 ProcessName: com.arktools.anlao
+Verbose
+07-01 14:10:03.493
+2257
+ColorZoomWindowManagerService
+onAnimationFinished: r=ActivityRecord{d5fc868 u0 com.arktools.anlao/.ui.MainActivity t-1 f}
+Verbose
+07-01 14:10:03.493
+2257
+ColorZoomWindowManagerService
+onAnimationFinished: r=ActivityRecord{d5fc868 u0 com.arktools.anlao/.ui.MainActivity t-1 f}
+Verbose
+07-01 14:10:03.496
+2257
+ColorZoomWindowManagerService
+onAnimationFinished: r=ActivityRecord{d5fc868 u0 com.arktools.anlao/.ui.MainActivity t-1 f}
+Error
+07-01 14:10:03.808
+4012
+oiface
+packageSwitch package com.arktools.anlao, pkgStatus 7
+Error
+07-01 14:10:03.808
+4012
+oiface
+packageSwitch pkg com.arktools.anlao, enter
+Error
+07-01 14:10:03.808
+4012
+oiface
+current package is com.arktools.anlao
+Debug
+07-01 14:10:03.823
+4012
+oiface
+forground package is com.arktools.anlao
+Warn
+07-01 14:10:03.879
+2257
+ActivityTaskManager
+Activity top resumed state loss timeout for ActivityRecord{d5fc868 u0 com.arktools.anlao/.ui.MainActivity t-1 f}
+Info
+07-01 14:10:03.882
+2257
+ColorHansManager
+ColorHansManager : resume pkg: com.oppo.launcher, uid:10022, prev pkg: com.arktools.anlao, prev uid: 10000
