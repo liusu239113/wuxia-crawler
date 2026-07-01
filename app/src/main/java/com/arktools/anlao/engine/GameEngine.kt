@@ -188,10 +188,12 @@ class GameEngine(private val context: Context) {
         p.equippedStats = PlayerStats(0,0,0,0,0f,0f,0f,0f)
         p.setBonusStats = PlayerStats(0,0,0,0,0f,0f,0f,0f)
         for (item in equippedItems) for (sm in item.stats) for ((k,v) in sm) {
+            val durMul = if (item.durability >= 50) 1f else item.durability / 50f * 0.5f
+            val dv = v * durMul
             when(k) {
-                "hp"->p.equippedStats.hpMax+=v.toInt(); "atk"->p.equippedStats.atk+=v.toInt()
-                "def"->p.equippedStats.def+=v.toInt(); "atkSpd"->p.equippedStats.atkSpd+=v
-                "vamp"->p.equippedStats.vamp+=v; "critRate"->p.equippedStats.critRate+=v; "critDmg"->p.equippedStats.critDmg+=v
+                "hp"->p.equippedStats.hpMax+=dv.toInt(); "atk"->p.equippedStats.atk+=dv.toInt()
+                "def"->p.equippedStats.def+=dv.toInt(); "atkSpd"->p.equippedStats.atkSpd+=dv
+                "vamp"->p.equippedStats.vamp+=dv; "critRate"->p.equippedStats.critRate+=dv; "critDmg"->p.equippedStats.critDmg+=dv
             }
         }
         applySetBonuses(equippedItems, p.setBonusStats)
@@ -316,6 +318,10 @@ class GameEngine(private val context: Context) {
         val r = current.copy()
         r.actionCounter++; r.runTime++
         _player.value = _player.value.copy(playtime = _player.value.playtime + 1)
+        // 每tick消耗火折子、增长心魔
+        tickTorchAndStress()
+        // 心魔200走火入魔
+        if (_player.value.stress >= 200) { forceRetreatFromStress(); return }
         val types = mutableListOf(
             "enemy", "enemy", "enemy", "enemy",
             "nothing", "nothing", "nothing", "nothing", "nothing",
@@ -1275,6 +1281,8 @@ class GameEngine(private val context: Context) {
             addCombatLog("战斗胜利，调息片刻，恢复${recover}点气血。")
         }
         saveGame()
+        // 战斗后装备损耗
+        degradeEquipmentOnBattle(!victory)
         val cs = _combatState.value
         if (victory && cs?.battleType == "guardian") {
             _realm.value = _realm.value.copy(isExploring = false, isEventActive = true, currentEvent = "floor_clear")
@@ -1470,6 +1478,236 @@ class GameEngine(private val context: Context) {
         return true
     }
 
+    // ==================== 心魔值系统 ====================
+
+    private val stressAfflictions = listOf("怯战","暴躁","多疑","自残","怯懦","贪婪","冷漠","疯狂")
+    private val stressVirtues = listOf("坚毅","狂热","冷静","守护")
+    val stressDebuffs = mapOf(
+        "怯战" to "攻击力-10%","暴躁" to "防御力-10%","多疑" to "吸血-3%",
+        "自残" to "每回合损失2%气血","怯懦" to "身法-15%","贪婪" to "暴击率-5%",
+        "冷漠" to "无法触发暴击","疯狂" to "攻击力+20%但防御归零"
+    )
+    val stressVirtueBuffs = mapOf(
+        "坚毅" to "防御+15%，心魔增长减半","狂热" to "攻击力+15%，吸血+5%",
+        "冷静" to "暴击率+10%，暴伤+20%","守护" to "每回合恢复3%气血"
+    )
+
+    fun addStress(amount: Int): String {
+        val p = _player.value.copy()
+        val actual = if (p.stressVirtue == "坚毅") amount / 2 else amount
+        p.stress = (p.stress + actual).coerceAtMost(200)
+        _player.value = p; saveGame()
+        addRealmLog("心魔值+${actual}（${p.stress}/200）")
+        return when {
+            p.stress >= 200 -> "走火入魔"
+            p.stress >= 100 && p.stressAffliction.isEmpty() && p.stressVirtue.isEmpty() -> "检定"
+            else -> ""
+        }
+    }
+
+    fun resolveStressCheck(): String {
+        val p = _player.value.copy()
+        if (Random.nextInt(100) < 25) {
+            val v = stressVirtues.random(); p.stressVirtue = v
+            addRealmLog("心魔检定通过！正面特质【${v}】——${stressVirtueBuffs[v]}")
+            soundManager.playSfx("realm_breakthrough")
+        } else {
+            val a = stressAfflictions.random(); p.stressAffliction = a
+            addRealmLog("心魔检定失败！负面特质【${a}】——${stressDebuffs[a]}")
+            soundManager.playSfx("blocked")
+        }
+        _player.value = p; calculateStats(); saveGame()
+        return if (p.stressVirtue.isNotEmpty()) p.stressVirtue else p.stressAffliction
+    }
+
+    fun reduceStress(amount: Int) {
+        val p = _player.value.copy()
+        p.stress = (p.stress - amount).coerceAtLeast(0)
+        _player.value = p; saveGame()
+        addRealmLog("心魔值-${amount}（${p.stress}/200）")
+    }
+
+    fun forceRetreatFromStress() {
+        val p = _player.value.copy(inCombat = false)
+        p.stress = 180; p.stats.hp = (p.stats.hpMax * 30 / 100).coerceAtLeast(1)
+        _combatState.value = null; _eventPrompt.value = null; _combatLog.value = emptyList()
+        _player.value = p
+        val r = _realm.value.copy(isExploring = false, isPaused = true, isEventActive = false, currentEvent = "")
+        _realm.value = r
+        addRealmLog("走火入魔！强制退出探索，气血仅余30%。")
+        soundManager.playSfx("blocked"); calculateStats(); saveGame()
+    }
+
+    // ==================== 火折子 & 解毒散（按秒计算） ====================
+
+    fun tickTorchAndStress() {
+        val p = _player.value.copy()
+        // 火折子按秒消耗
+        if (p.torchActive) {
+            p.torchSecondsLeft--
+            p.torchEnergy = (p.torchEnergy - 1).coerceAtLeast(0)
+            if (p.torchSecondsLeft <= 0 || p.torchEnergy <= 0) {
+                p.torchActive = false; p.torchSecondsLeft = 0; p.torchEnergy = 0
+                addRealmLog("火折子燃尽！黑暗降临……"); soundManager.playSfx("bell_pause")
+            }
+        }
+        // 解毒散按秒倒计时
+        if (p.antidoteActive) {
+            p.antidoteSecondsLeft--
+            if (p.antidoteSecondsLeft <= 0) { p.antidoteActive = false; addRealmLog("解毒散药效消散。") }
+        }
+        _player.value = p; saveGame()
+        // 心魔增长
+        val stressGain = if (p.torchActive) 2 else 8
+        val floorBonus = _realm.value.floor / 10
+        val result = addStress(stressGain + floorBonus)
+        if (result == "检定") resolveStressCheck()
+        // 无火折子持续扣血
+        if (!p.torchActive) {
+            val pp = _player.value.copy()
+            val dmg = (pp.stats.hpMax * 2 / 100).coerceAtLeast(1)
+            pp.stats.hp = (pp.stats.hp - dmg).coerceAtLeast(1)
+            _player.value = pp; addRealmLog("黑暗中阴气侵蚀，损失${dmg}点气血。")
+        }
+        calculateStats(); saveGame()
+    }
+
+    /** 使用火折子，每个持续60秒 */
+    fun useTorch(count: Int = 1) {
+        val p = _player.value.copy()
+        p.torchEnergy = (p.torchEnergy + count * 50).coerceAtMost(100)
+        p.torchActive = true
+        p.torchSecondsLeft += count * 60
+        _player.value = p; saveGame()
+        addRealmLog("点燃${count}个火折子！照明能量+${count * 50}，持续${p.torchSecondsLeft}秒。")
+        soundManager.playSfx("gong_start")
+    }
+
+    /** 使用解毒散，每个持续30秒 */
+    fun useAntidote(count: Int = 1) {
+        val p = _player.value.copy()
+        p.antidoteActive = true
+        p.antidoteSecondsLeft += count * 30
+        _player.value = p; saveGame()
+        addRealmLog("服用${count}个解毒散！${p.antidoteSecondsLeft}秒内免疫中毒。")
+        soundManager.playSfx("qi_flow")
+    }
+
+    /** 商城购买火折子（不同品质） */
+    fun buyTorch(tier: Int = 1): Boolean {
+        val price = when (tier) { 1 -> 30L; 2 -> 80L; 3 -> 200L; else -> 30L }
+        val p = _player.value.copy()
+        if (p.gold < price) { addRealmLog("银两不足！"); soundManager.playSfx("blocked"); return false }
+        p.gold -= price; _player.value = p
+        addRealmLog("购入火折子（${tier}级），花费${price}两。"); saveGame(); return true
+    }
+
+    /** 商城购买解毒散（不同品质） */
+    fun buyAntidote(tier: Int = 1): Boolean {
+        val price = when (tier) { 1 -> 50L; 2 -> 120L; 3 -> 300L; else -> 50L }
+        val p = _player.value.copy()
+        if (p.gold < price) { addRealmLog("银两不足！"); soundManager.playSfx("blocked"); return false }
+        p.gold -= price; _player.value = p
+        addRealmLog("购入解毒散（${tier}级），花费${price}两。"); saveGame(); return true
+    }
+
+    /** 获取火折子库存 */
+    fun torchCount(): Int = _player.value.torchEnergy / 50 + if (_player.value.torchActive) 1 else 0
+
+    /** 获取解毒散库存 */
+    fun antidoteCount(): Int = _player.value.antidoteSecondsLeft / 30 + if (_player.value.antidoteActive) 1 else 0
+        // 解毒散倒计时
+        if (p.antidoteActive) {
+            p.antidoteTurns--
+            if (p.antidoteTurns <= 0) { p.antidoteActive = false; addRealmLog("解毒散药效消散。") }
+        }
+        _player.value = p; saveGame()
+        // 心魔增长
+        val stressGain = if (p.torchActive) 2 else 8
+        val floorBonus = _realm.value.floor / 10
+        val result = addStress(stressGain + floorBonus)
+        if (result == "检定") resolveStressCheck()
+        // 无火折子持续扣血
+        if (!p.torchActive) {
+            val pp = _player.value.copy()
+            val dmg = (pp.stats.hpMax * 2 / 100).coerceAtLeast(1)
+            pp.stats.hp = (pp.stats.hp - dmg).coerceAtLeast(1)
+            _player.value = pp; addRealmLog("黑暗中阴气侵蚀，损失${dmg}点气血。")
+        }
+        calculateStats(); saveGame()
+    }
+
+    /** 使用火折子，可叠加 */
+    fun useTorch(count: Int = 1) {
+        val p = _player.value.copy()
+        val energyGain = count * 50 // 每个火折子+50能量
+        p.torchEnergy = (p.torchEnergy + energyGain).coerceAtMost(100)
+        p.torchActive = true
+        _player.value = p; saveGame()
+        addRealmLog("点燃${count}个火折子！照明能量+${energyGain}（${p.torchEnergy}/100）。")
+        soundManager.playSfx("gong_start")
+    }
+
+    /** 使用解毒散，可叠加 */
+    fun useAntidote(count: Int = 1) {
+        val p = _player.value.copy()
+        p.antidoteActive = true; p.antidoteTurns = count * 3 // 每个持续3回合
+        _player.value = p; saveGame()
+        addRealmLog("服用${count}个解毒散！${p.antidoteTurns}回合内免疫中毒。")
+        soundManager.playSfx("qi_flow")
+    }
+
+    // ==================== 装备损耗 & 修复 ====================
+
+    /** 战斗胜利后装备损耗 */
+    fun degradeEquipmentOnBattle(defeated: Boolean) {
+        val equipped = parseEquipped().toMutableList()
+        val candidates = equipped.indices.filter { equipped[it].category.isNotBlank() }
+        if (candidates.isEmpty()) return
+        val losses = if (defeated) listOf(8, 12, 15) else listOf(2, 4, 6)
+        for (idx in candidates.shuffled().take(Random.nextInt(1, 3))) {
+            val item = equipped[idx]
+            val loss = losses.random()
+            val newDur = (item.durability - loss).coerceAtLeast(0)
+            equipped[idx] = item.copy(durability = newDur)
+            if (newDur <= 20) addRealmLog("【${item.category}】耐久仅剩${newDur}%，请修复！")
+        }
+        _player.value = _player.value.copy(equipped = gson.toJson(equipped))
+        saveGame()
+    }
+
+    fun repairCost(item: EquipmentItem): Long {
+        val mul = when (item.rarity) { "凡品"->1L;"良品"->2L;"稀有"->4L;"史诗"->8L;"传说"->15L;"太古"->30L;else->1L }
+        return (100L + item.lvl * 20L) * mul
+    }
+
+    fun repairEquipment(idx: Int): Boolean {
+        val equipped = parseEquipped().toMutableList()
+        if (idx < 0 || idx >= equipped.size) return false
+        val item = equipped[idx]
+        if (item.category.isBlank() || item.durability >= 100) return false
+        val cost = repairCost(item)
+        val p = _player.value.copy()
+        if (p.gold < cost) { addRealmLog("银两不足，需${cost}两。"); soundManager.playSfx("blocked"); return false }
+        p.gold -= cost
+        equipped[idx] = item.copy(durability = 100)
+        _player.value = p.copy(equipped = gson.toJson(equipped))
+        addRealmLog("修复【${item.category}】耐久至满，花费${cost}两。")
+        soundManager.playSfx("equip_blade"); calculateStats(); saveGame(); return true
+    }
+
+    // ==================== 强化成功率 ====================
+
+    fun enhanceSuccessRate(item: EquipmentItem): Int {
+        val lvl = item.lvl
+        return when {
+            lvl <= 5 -> 100
+            lvl <= 10 -> (100 - (lvl - 5) * 5).coerceAtLeast(70)
+            lvl <= 15 -> (70 - (lvl - 10) * 8).coerceAtLeast(30)
+            else -> (30 - (lvl - 15) * 5).coerceAtLeast(10)
+        }
+    }
+
     private fun statKeyToKey(s:String)=when(s){"气血"->"hp";"攻击"->"atk";"防御"->"def";"身法"->"atkSpd";"吸血"->"vamp";"暴击率"->"critRate";"暴击伤害"->"critDmg";else->s}
     private fun statDisplay(k:String)=when(k){"hp"->"气血";"atk"->"攻击";"def"->"防御";"atkSpd"->"身法";"vamp"->"吸血";"critRate"->"暴率";"critDmg"->"暴伤";else->k}
 
@@ -1620,8 +1858,8 @@ class GameEngine(private val context: Context) {
     }
     fun unequipAll() { val eq=parseEquipped().toMutableList(); val inv=parseInventory().toMutableList(); inv.addAll(eq); _player.value=_player.value.copy(equipped="[]",inventory=gson.toJson(inv)); calculateStats(); saveGame() }
 
-    fun enhanceCost(item: EquipmentItem): Long = (item.lvl*180L+_realm.value.floor*60L).coerceAtLeast(120L)
-    fun reforgeCost(item: EquipmentItem): Long = (item.lvl*260L+_realm.value.floor*90L).coerceAtLeast(180L)
+    fun enhanceCost(item: EquipmentItem): Long = (item.lvl*270L+_realm.value.floor*90L).coerceAtLeast(180L)
+    fun reforgeCost(item: EquipmentItem): Long = (item.lvl*390L+_realm.value.floor*135L).coerceAtLeast(270L)
 
     fun enhanceEquipped(idx:Int):Boolean {
         val equipped=parseEquipped().toMutableList(); if(idx<0||idx>=equipped.size)return false
@@ -1631,11 +1869,21 @@ class GameEngine(private val context: Context) {
         val cost=enhanceCost(item)
         if(p.gold<cost){addRealmLog("银两不足，无法强化装备。");soundManager.playSfx("blocked");return false}
         p.gold-=cost
-        val enhanced=item.copy(lvl=item.lvl+1, value=item.value+(cost/2).toInt(), stats=item.stats.map{sm->sm.mapValues{it.value*1.08f}})
-        equipped[idx]=enhanced
-        _player.value=p.copy(equipped=gson.toJson(equipped))
-        calculateStats(); addRealmLog("强化【${item.category}】成功，品阶提升。")
-        soundManager.playSfx("equip_blade"); saveGame(); return true
+        val rate = enhanceSuccessRate(item)
+        if (Random.nextInt(100) < rate) {
+            val enhanced=item.copy(lvl=item.lvl+1, value=item.value+(cost/2).toInt(), stats=item.stats.map{sm->sm.mapValues{it.value*1.04f}})
+            equipped[idx]=enhanced
+            _player.value=p.copy(equipped=gson.toJson(equipped))
+            calculateStats(); addRealmLog("强化【${item.category}】成功！+${item.lvl+1}。")
+            soundManager.playSfx("equip_blade")
+        } else {
+            val degraded=item.copy(lvl=(item.lvl-1).coerceAtLeast(0), value=(item.value*0.9f).toInt(), stats=item.stats.map{sm->sm.mapValues{it.value/1.04f}})
+            equipped[idx]=degraded
+            _player.value=p.copy(equipped=gson.toJson(equipped))
+            calculateStats(); addRealmLog("强化【${item.category}】失败！降至+${(item.lvl-1).coerceAtLeast(0)}。")
+            soundManager.playSfx("blocked")
+        }
+        saveGame(); return true
     }
 
     fun reforgeEquipped(idx:Int):Boolean {

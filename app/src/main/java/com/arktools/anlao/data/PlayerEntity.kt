@@ -29,45 +29,49 @@ data class PlayerEntity(
     var playtime: Long = 0,
     var gold: Long = 500L,
 
-    // 基础属性
     var baseStats: PlayerStats = PlayerStats(),
-    // 等级奖励属性（百分比）
     var bonusStats: BonusStats = BonusStats(),
-    // 装备加成属性
     var equippedStats: PlayerStats = PlayerStats(0, 0, 0, 0, 0f, 0f, 0f, 0f),
-    // 套装加成属性
     var setBonusStats: PlayerStats = PlayerStats(0, 0, 0, 0, 0f, 0f, 0f, 0f),
-    // 当前最终属性
     var stats: PlayerStats = PlayerStats(),
-    // 临时buff（嗜战/影舞步）
     var tempStats: BonusStats = BonusStats(),
 
-    // 经验
     var exp: ExpInfo = ExpInfo(),
 
-    // 装备
-    var equipped: String = "[]",      // JSON array of EquipmentItem
+    var equipped: String = "[]",
     var inventory: String = "[]",
 
-    // 技能
     var skills: String = "",
     var inCombat: Boolean = false,
     var isAllocated: Boolean = false,
     var prologueSeen: Boolean = false,
+    var blessing: Int = 1,
 
-    // 祝福等级
-    var blessing: Int = 1
+    // 心魔值 0-200
+    var stress: Int = 0,
+    var stressAffliction: String = "",
+    var stressVirtue: String = "",
+
+    // 火折子
+    var torchEnergy: Int = 100,
+    var torchActive: Boolean = false,
+    var torchSecondsLeft: Int = 0,
+
+    // 解毒散
+    var antidoteActive: Boolean = false,
+    var antidoteSecondsLeft: Int = 0
 )
 
 data class EquipmentItem(
-    val category: String = "",       // EquipmentType name
-    val attribute: String = "DAMAGE", // EquipmentAttribute name
-    val type: String = "Weapon",     // 武器/护甲/盾牌/头盔
+    val category: String = "",
+    val attribute: String = "DAMAGE",
+    val type: String = "Weapon",
     val rarity: String = "凡品",
     val lvl: Int = 1,
     val tier: Int = 1,
     val value: Int = 0,
-    val stats: List<Map<String, Float>> = emptyList() // [{statName: value}, ...]
+    val stats: List<Map<String, Float>> = emptyList(),
+    val durability: Int = 100
 )
 
 data class CombatState(
