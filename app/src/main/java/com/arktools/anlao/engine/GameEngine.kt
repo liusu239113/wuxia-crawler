@@ -1601,8 +1601,8 @@ class GameEngine(private val context: Context) {
             }
         }
         _player.value = p; saveGame()
-        // 心魔：点燃火折子时不增长，没点燃时按层深增长
-        val stressChange = if (p.torchActive) 0 else (8 + _realm.value.floor / 10)
+        // 心魔：点燃火折子时每秒降3恢复，没点燃时按层深增长
+        val stressChange = if (p.torchActive) -3 else (8 + _realm.value.floor / 10)
         val result = addStress(stressChange)
         if (result == "检定") resolveStressCheck()
         // 无火折子持续扣血
