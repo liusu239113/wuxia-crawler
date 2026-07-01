@@ -1004,23 +1004,6 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
         }
     }
 }
-            Box {
-                TextButton(onClick = { expanded = true }) { Text("批量出售", color = HpRed, fontSize = 12.sp) }
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false },
-                    modifier = Modifier.background(BgPanel).border(1.dp, GoldAccent, RoundedCornerShape(8.dp))
-                ) {
-                    (listOf("全部") + EquipmentRarity.entries.map { it.displayName }).forEach { r ->
-                        DropdownMenuItem(
-                            text = { Text(r, fontSize = 12.sp, color = RarityCol[r] ?: TextWhite) },
-                            colors = MenuDefaults.itemColors(textColor = RarityCol[r] ?: TextWhite),
-                            onClick = { expanded = false; engine.sellAll(r); selected = null }
-                        )
-                    }
-                }
-            }
-        }
 
         Text("已装备 (6槽)", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
         Row(Modifier.fillMaxWidth().border(1.dp, BorderWhite, RoundedCornerShape(8.dp)).padding(8.dp),
