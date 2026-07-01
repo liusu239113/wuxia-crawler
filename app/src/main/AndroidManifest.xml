@@ -47,36 +47,33 @@
             </intent-filter>
         </activity>
 
-        <!-- 穿山甲(CSJ) TTFileProvider — 禁用，延迟到 SDK 初始化后按需启用 -->
+        <!-- 穿山甲(CSJ) TTFileProvider -->
         <provider
             android:name="com.bytedance.sdk.openadsdk.TTFileProvider"
             android:authorities="${applicationId}.TTFileProvider"
             android:exported="false"
-            android:enabled="false"
             android:grantUriPermissions="true">
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/anythink_bk_tt_file_path" />
         </provider>
 
-        <!-- 优量汇 (GDT) FileProvider — 禁用 -->
+        <!-- 优量汇 (GDT) FileProvider -->
         <provider
             android:name="com.qq.e.comm.GDTFileProvider"
             android:authorities="${applicationId}.gdt.fileprovider"
             android:exported="false"
-            android:enabled="false"
             android:grantUriPermissions="true">
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/anythink_bk_gdt_file_path" />
         </provider>
 
-        <!-- Sigmob FileProvider — 禁用 -->
+        <!-- Sigmob FileProvider -->
         <provider
             android:name="com.sigmob.sdk.SigmobFileV4Provider"
             android:authorities="${applicationId}.sigprovider"
             android:exported="false"
-            android:enabled="false"
             android:grantUriPermissions="true"
             android:initOrder="200">
             <meta-data
