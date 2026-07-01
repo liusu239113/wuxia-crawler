@@ -1614,16 +1614,6 @@ class GameEngine(private val context: Context) {
         soundManager.playSfx("qi_flow")
     }
 
-    /** 使用解毒散，每个持续30秒 */
-    fun useAntidote(count: Int = 1) {
-        val p = _player.value.copy()
-        p.antidoteActive = true
-        p.antidoteSecondsLeft += count * 30
-        _player.value = p; saveGame()
-        addRealmLog("服用${count}个解毒散！${p.antidoteSecondsLeft}秒内免疫中毒。")
-        soundManager.playSfx("qi_flow")
-    }
-
     /** 商城购买火折子（价格随境界递增） */
     fun buyTorch(tier: Int = 1): Boolean {
         val realmMult = (_player.value.lvl / 10 + 1).toLong()
