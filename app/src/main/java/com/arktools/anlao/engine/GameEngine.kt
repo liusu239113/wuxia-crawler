@@ -1618,8 +1618,8 @@ class GameEngine(private val context: Context) {
     fun antidoteCount(): Int = _player.value.antidoteSecondsLeft / 30 + if (_player.value.antidoteActive) 1 else 0
         // 解毒散倒计时
         if (p.antidoteActive) {
-            p.antidoteTurns--
-            if (p.antidoteTurns <= 0) { p.antidoteActive = false; addRealmLog("解毒散药效消散。") }
+            p.antidoteSecondsLeft--
+            if (p.antidoteSecondsLeft <= 0) { p.antidoteActive = false; addRealmLog("解毒散药效消散。") }
         }
         _player.value = p; saveGame()
         // 心魔增长
@@ -1651,9 +1651,10 @@ class GameEngine(private val context: Context) {
     /** 使用解毒散，可叠加 */
     fun useAntidote(count: Int = 1) {
         val p = _player.value.copy()
-        p.antidoteActive = true; p.antidoteTurns = count * 3 // 每个持续3回合
+        p.antidoteActive = true
+        p.antidoteSecondsLeft += count * 30
         _player.value = p; saveGame()
-        addRealmLog("服用${count}个解毒散！${p.antidoteTurns}回合内免疫中毒。")
+        addRealmLog("服用${count}个解毒散！${p.antidoteSecondsLeft}秒内免疫中毒。")
         soundManager.playSfx("qi_flow")
     }
 
