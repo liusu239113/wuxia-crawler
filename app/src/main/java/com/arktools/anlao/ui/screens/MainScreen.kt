@@ -257,7 +257,7 @@ private fun ShopItemRow(
             }
             Spacer(Modifier.weight(1f))
             Button(onClick = { onBuy(selectedTier) },
-                colors = ButtonDefaults.buttonColors(containerColor = BorderWhite),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00)),
                 shape = RoundedCornerShape(4.dp)) {
                 Text("购买 ${prices[selectedTier] * qty}两", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
@@ -341,13 +341,13 @@ private fun BlacksmithOverlay(engine: com.arktools.anlao.engine.GameEngine, play
                         Button(onClick = {
                             val ok = engine.enhanceEquipped(selectedSlot)
                             feedback = if (item.lvl >= 30) "已达上限+30" else if (ok) "强化成功！" else "银两不足（需${enhanceCost}两）"
-                        }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = BorderWhite), shape = RoundedCornerShape(6.dp)) {
-                            Text("强化 ${enhanceCost}两 ${rate}%", color = TextWhite, fontSize = 11.sp)
+}, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)), shape = RoundedCornerShape(6.dp)) {
+                        Text("强化 ${enhanceCost}两 ${rate}%", color = TextWhite, fontSize = 11.sp)
                         }
                         Button(onClick = {
                             val ok = engine.reforgeEquipped(selectedSlot)
                             feedback = if (ok) "重铸成功！" else "银两不足（需${reforgeCost}两）"
-                        }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = BorderWhite), shape = RoundedCornerShape(6.dp)) {
+                        }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6A1B9A)), shape = RoundedCornerShape(6.dp)) {
                             Text("重铸 ${reforgeCost}两", color = TextWhite, fontSize = 11.sp)
                         }
                     }
@@ -355,7 +355,7 @@ private fun BlacksmithOverlay(engine: com.arktools.anlao.engine.GameEngine, play
                         Button(onClick = {
                             val ok = engine.repairEquipment(selectedSlot)
                             feedback = if (ok) "修复成功！" else "银两不足（需${repairCost}两）"
-                        }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = BorderWhite), shape = RoundedCornerShape(6.dp)) {
+                        }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)), shape = RoundedCornerShape(6.dp)) {
                             Text("修复 ${repairCost}两  恢复耐久至满", color = TextWhite, fontSize = 11.sp)
                         }
                     }
@@ -387,7 +387,7 @@ private fun BreakthroughDialog(pending: Boolean, info: Pair<String, String>?, en
         confirmButton = {
             if (!showAdStage) {
                 Button(onClick = { engine.confirmBreakthrough(); showAdStage = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = BorderWhite)) { Text("突破！", color = Color.Black) }
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00))) { Text("突破！", color = Color.Black) }
             } else {
                 Button(
                     onClick = {
@@ -430,10 +430,10 @@ private fun LevelUpDialog(show: Boolean, upgrades: List<com.arktools.anlao.confi
                 Spacer(Modifier.height(8.dp))
                 upgrades.forEachIndexed { i, opt ->
                     Button(onClick = { engine.selectUpgrade(i) },
-                        colors = ButtonDefaults.buttonColors(containerColor = BorderWhite),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
                         shape = RoundedCornerShape(4.dp),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
-                    ) { Text("${opt.stat} +${"%.1f".format(opt.value)}%", color = TextWhite) }
+                    ) { Text("${opt.stat} +${"%.1f".format(opt.value)}%", color = TextWhite, fontSize = 13.sp) }
                 }
                 if (rerolls <= 0) {
                     Button(
@@ -914,7 +914,7 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
                             Text("$useQty", color = TextWhite, fontSize = 13.sp, modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
                             Button(onClick = { useQty = (useQty + 1).coerceAtMost(engine.torchCount().coerceAtLeast(1)) }, contentPadding = PaddingValues(6.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("+", color = TextWhite) }
                         }
-                        Button(onClick = { engine.useTorch(useQty); onFeedback("点燃${useQty}个火折子") }, colors = ButtonDefaults.buttonColors(containerColor = BorderWhite), shape = RoundedCornerShape(4.dp)) {
+                        Button(onClick = { engine.useTorch(useQty); onFeedback("点燃${useQty}个火折子") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF8C00)), shape = RoundedCornerShape(4.dp)) {
                             Text("使用", color = TextWhite)
                         }
                     }
@@ -933,7 +933,7 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
                             Text("$useQty", color = TextWhite, fontSize = 13.sp, modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
                             Button(onClick = { useQty = (useQty + 1).coerceAtMost(engine.antidoteCount().coerceAtLeast(1)) }, contentPadding = PaddingValues(6.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("+", color = TextWhite) }
                         }
-                        Button(onClick = { engine.useAntidote(useQty); onFeedback("服用${useQty}个解毒散") }, colors = ButtonDefaults.buttonColors(containerColor = BorderWhite), shape = RoundedCornerShape(4.dp)) {
+                        Button(onClick = { engine.useAntidote(useQty); onFeedback("服用${useQty}个解毒散") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)), shape = RoundedCornerShape(4.dp)) {
                             Text("使用", color = TextWhite)
                         }
                     }
@@ -1153,7 +1153,7 @@ private fun EquipmentDetailDialog(item: com.arktools.anlao.data.EquipmentItem, o
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onEquip() }, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = BorderWhite),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00)),
                     shape = RoundedCornerShape(6.dp)) { Text("装备", color = Color.Black, fontSize = 13.sp) }
                 Button(onClick = onDismiss, modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)),
@@ -1582,7 +1582,7 @@ private fun CombatResultOverlay(cs: CombatState, engine: com.arktools.anlao.engi
                 if (!showAdOptions) {
                     Button(
                         onClick = { engine.dismissCombatResult() },
-                        colors = ButtonDefaults.buttonColors(containerColor = BorderWhite),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00)),
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text("继续探索", color = Color.Black, fontSize = 18.sp)
