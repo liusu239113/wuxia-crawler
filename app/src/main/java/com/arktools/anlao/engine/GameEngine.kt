@@ -1616,47 +1616,6 @@ class GameEngine(private val context: Context) {
 
     /** 获取解毒散库存 */
     fun antidoteCount(): Int = _player.value.antidoteSecondsLeft / 30 + if (_player.value.antidoteActive) 1 else 0
-        // 解毒散倒计时
-        if (p.antidoteActive) {
-            p.antidoteSecondsLeft--
-            if (p.antidoteSecondsLeft <= 0) { p.antidoteActive = false; addRealmLog("解毒散药效消散。") }
-        }
-        _player.value = p; saveGame()
-        // 心魔增长
-        val stressGain = if (p.torchActive) 2 else 8
-        val floorBonus = _realm.value.floor / 10
-        val result = addStress(stressGain + floorBonus)
-        if (result == "检定") resolveStressCheck()
-        // 无火折子持续扣血
-        if (!p.torchActive) {
-            val pp = _player.value.copy()
-            val dmg = (pp.stats.hpMax * 2 / 100).coerceAtLeast(1)
-            pp.stats.hp = (pp.stats.hp - dmg).coerceAtLeast(1)
-            _player.value = pp; addRealmLog("黑暗中阴气侵蚀，损失${dmg}点气血。")
-        }
-        calculateStats(); saveGame()
-    }
-
-    /** 使用火折子，可叠加 */
-    fun useTorch(count: Int = 1) {
-        val p = _player.value.copy()
-        val energyGain = count * 50 // 每个火折子+50能量
-        p.torchEnergy = (p.torchEnergy + energyGain).coerceAtMost(100)
-        p.torchActive = true
-        _player.value = p; saveGame()
-        addRealmLog("点燃${count}个火折子！照明能量+${energyGain}（${p.torchEnergy}/100）。")
-        soundManager.playSfx("gong_start")
-    }
-
-    /** 使用解毒散，可叠加 */
-    fun useAntidote(count: Int = 1) {
-        val p = _player.value.copy()
-        p.antidoteActive = true
-        p.antidoteSecondsLeft += count * 30
-        _player.value = p; saveGame()
-        addRealmLog("服用${count}个解毒散！${p.antidoteSecondsLeft}秒内免疫中毒。")
-        soundManager.playSfx("qi_flow")
-    }
 
     // ==================== 装备损耗 & 修复 ====================
 
