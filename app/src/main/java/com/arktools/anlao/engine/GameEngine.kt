@@ -1547,9 +1547,8 @@ class GameEngine(private val context: Context) {
         // 火折子按秒消耗
         if (p.torchActive) {
             p.torchSecondsLeft--
-            p.torchEnergy = (p.torchEnergy - 1).coerceAtLeast(0)
-            if (p.torchSecondsLeft <= 0 || p.torchEnergy <= 0) {
-                p.torchActive = false; p.torchSecondsLeft = 0; p.torchEnergy = 0
+            if (p.torchSecondsLeft <= 0) {
+                p.torchActive = false; p.torchSecondsLeft = 0
                 addRealmLog("火折子燃尽！黑暗降临……"); soundManager.playSfx("bell_pause")
             }
         }
@@ -1577,12 +1576,27 @@ class GameEngine(private val context: Context) {
     /** 使用火折子，每个持续60秒 */
     fun useTorch(count: Int = 1) {
         val p = _player.value.copy()
-        p.torchEnergy = (p.torchEnergy + count * 50).coerceAtMost(100)
+        val actual = count.coerceAtMost(p.torchCount)
+        if (actual <= 0) { addRealmLog("没有火折子可用。"); return }
+        p.torchCount -= actual
+        p.torchSecondsLeft += actual * 60
         p.torchActive = true
-        p.torchSecondsLeft += count * 60
         _player.value = p; saveGame()
-        addRealmLog("点燃${count}个火折子！照明能量+${count * 50}，持续${p.torchSecondsLeft}秒。")
+        addRealmLog("点燃${actual}个火折子！持续${p.torchSecondsLeft}秒。")
         soundManager.playSfx("gong_start")
+    }
+
+    /** 使用解毒散，每个持续30秒 */
+    fun useAntidote(count: Int = 1) {
+        val p = _player.value.copy()
+        val actual = count.coerceAtMost(p.antidoteCount)
+        if (actual <= 0) { addRealmLog("没有解毒散可用。"); return }
+        p.antidoteCount -= actual
+        p.antidoteSecondsLeft += actual * 30
+        p.antidoteActive = true
+        _player.value = p; saveGame()
+        addRealmLog("服用${actual}个解毒散！${p.antidoteSecondsLeft}秒内免疫中毒。")
+        soundManager.playSfx("qi_flow")
     }
 
     /** 使用解毒散，每个持续30秒 */
@@ -1602,7 +1616,8 @@ class GameEngine(private val context: Context) {
         val price = basePrice * realmMult
         val p = _player.value.copy()
         if (p.gold < price) { addRealmLog("银两不足！需${price}两。"); soundManager.playSfx("blocked"); return false }
-        p.gold -= price; _player.value = p
+        p.gold -= price; p.torchCount += 1
+        _player.value = p
         addRealmLog("购入火折子（${tier}级），花费${price}两。"); saveGame(); return true
     }
 
@@ -1613,15 +1628,16 @@ class GameEngine(private val context: Context) {
         val price = basePrice * realmMult
         val p = _player.value.copy()
         if (p.gold < price) { addRealmLog("银两不足！需${price}两。"); soundManager.playSfx("blocked"); return false }
-        p.gold -= price; _player.value = p
+        p.gold -= price; p.antidoteCount += 1
+        _player.value = p
         addRealmLog("购入解毒散（${tier}级），花费${price}两。"); saveGame(); return true
     }
 
     /** 获取火折子库存 */
-    fun torchCount(): Int = _player.value.torchEnergy / 50 + if (_player.value.torchActive) 1 else 0
+    fun torchCount(): Int = _player.value.torchCount
 
     /** 获取解毒散库存 */
-    fun antidoteCount(): Int = _player.value.antidoteSecondsLeft / 30 + if (_player.value.antidoteActive) 1 else 0
+    fun antidoteCount(): Int = _player.value.antidoteCount
 
     // ==================== 商城/铁匠铺 UI 控制 ====================
 
@@ -1940,7 +1956,7 @@ class GameEngine(private val context: Context) {
             val loadedPlayer = gson.fromJson(pj,PlayerEntity::class.java).copy(inCombat = false)
             if (MartialSect.entries.none { it.name == loadedPlayer.sect }) loadedPlayer.sect = MartialSect.WANDERER.name
             // 旧存档兼容：Gson不会给新字段填默认值
-            if (loadedPlayer.torchEnergy == 0) loadedPlayer.torchEnergy = 100
+            if (loadedPlayer.torchCount == 0 && loadedPlayer.torchActive) loadedPlayer.torchCount = 1
             migrateEquipmentCap()
             _player.value = loadedPlayer
             _realm.value=gson.fromJson(rj,RealmState::class.java).copy(isExploring=false,isPaused=true,isEventActive=false,currentEvent="")

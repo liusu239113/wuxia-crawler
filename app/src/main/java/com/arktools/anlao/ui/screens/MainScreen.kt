@@ -341,13 +341,13 @@ private fun BlacksmithOverlay(engine: com.arktools.anlao.engine.GameEngine, play
                         Button(onClick = {
                             val ok = engine.enhanceEquipped(selectedSlot)
                             feedback = if (item.lvl >= 30) "已达上限+30" else if (ok) "强化成功！" else "银两不足（需${enhanceCost}两）"
-                        }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)), shape = RoundedCornerShape(6.dp)) {
+                        }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = BorderWhite), shape = RoundedCornerShape(6.dp)) {
                             Text("强化 ${enhanceCost}两 ${rate}%", color = TextWhite, fontSize = 11.sp)
                         }
                         Button(onClick = {
                             val ok = engine.reforgeEquipped(selectedSlot)
                             feedback = if (ok) "重铸成功！" else "银两不足（需${reforgeCost}两）"
-                        }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6A1B9A)), shape = RoundedCornerShape(6.dp)) {
+                        }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = BorderWhite), shape = RoundedCornerShape(6.dp)) {
                             Text("重铸 ${reforgeCost}两", color = TextWhite, fontSize = 11.sp)
                         }
                     }
@@ -879,61 +879,6 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
                 onUnequip = { if (selectedEquippedIndex >= 0) { engine.unequipItem(selectedEquippedIndex); selected = null; selectedEquippedIndex = -1 } })
         }
 
-        // ===== 消耗品区 =====
-        val torchCount = engine.torchCount()
-        val antidoteCount = engine.antidoteCount()
-        if (torchCount > 0 || antidoteCount > 0 || player.torchActive || player.antidoteActive) {
-            Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("消耗品", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                if (player.torchActive) Text("  火折 ${player.torchSecondsLeft}s", color = Color(0xFFFFA000), fontSize = 11.sp)
-                if (player.antidoteActive) Text("  解毒 ${player.antidoteSecondsLeft}s", color = Color(0xFF4CAF50), fontSize = 11.sp)
-            }
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // 火折子
-                if (torchCount > 0 || player.torchActive) {
-                    Column(Modifier.weight(1f).border(1.dp, BorderWhite, RoundedCornerShape(6.dp)).background(BgPanel, RoundedCornerShape(6.dp)).padding(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            AssetImageBox("ui/icons/fire_torch.png", 28, "火折子")
-                            Column { Text("火折子 ×${torchCount}", color = Color(0xFFFFA000), fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Button(onClick = { useQty = (useQty - 1).coerceAtLeast(1) }, contentPadding = PaddingValues(4.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("-", color = TextWhite, fontSize = 14.sp) }
-                            Text("$useQty", color = TextWhite, fontSize = 12.sp, modifier = Modifier.width(20.dp), textAlign = TextAlign.Center)
-                            Button(onClick = { useQty = (useQty + 1).coerceAtMost(torchCount) }, contentPadding = PaddingValues(4.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("+", color = TextWhite, fontSize = 14.sp) }
-                        }
-                        Button(onClick = { engine.useTorch(useQty); onFeedback("点燃${useQty}个火折子") }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFA000)), shape = RoundedCornerShape(4.dp)) {
-                            Text("使用", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-                // 解毒散
-                if (antidoteCount > 0 || player.antidoteActive) {
-                    Column(Modifier.weight(1f).border(1.dp, BorderWhite, RoundedCornerShape(6.dp)).background(BgPanel, RoundedCornerShape(6.dp)).padding(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            AssetImageBox("ui/icons/herb_antidote.png", 28, "解毒散")
-                            Column { Text("解毒散 ×${antidoteCount}", color = Color(0xFF4CAF50), fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Button(onClick = { useQty = (useQty - 1).coerceAtLeast(1) }, contentPadding = PaddingValues(4.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("-", color = TextWhite, fontSize = 14.sp) }
-                            Text("$useQty", color = TextWhite, fontSize = 12.sp, modifier = Modifier.width(20.dp), textAlign = TextAlign.Center)
-                            Button(onClick = { useQty = (useQty + 1).coerceAtMost(antidoteCount) }, contentPadding = PaddingValues(4.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("+", color = TextWhite, fontSize = 14.sp) }
-                        }
-                        Button(onClick = { engine.useAntidote(useQty); onFeedback("服用${useQty}个解毒散") }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)), shape = RoundedCornerShape(4.dp)) {
-                            Text("使用", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
-
         // ===== 背包分类标签 =====
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             categories.forEachIndexed { i, cat ->
@@ -964,8 +909,8 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
                             Text("$useQty", color = TextWhite, fontSize = 13.sp, modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
                             Button(onClick = { useQty = (useQty + 1).coerceAtMost(engine.torchCount().coerceAtLeast(1)) }, contentPadding = PaddingValues(6.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("+", color = TextWhite) }
                         }
-                        Button(onClick = { engine.useTorch(useQty); onFeedback("点燃${useQty}个火折子") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFA000)), shape = RoundedCornerShape(4.dp)) {
-                            Text("使用", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Button(onClick = { engine.useTorch(useQty); onFeedback("点燃${useQty}个火折子") }, colors = ButtonDefaults.buttonColors(containerColor = BorderWhite), shape = RoundedCornerShape(4.dp)) {
+                            Text("使用", color = TextWhite)
                         }
                     }
                 }
@@ -983,8 +928,8 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
                             Text("$useQty", color = TextWhite, fontSize = 13.sp, modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
                             Button(onClick = { useQty = (useQty + 1).coerceAtMost(engine.antidoteCount().coerceAtLeast(1)) }, contentPadding = PaddingValues(6.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("+", color = TextWhite) }
                         }
-                        Button(onClick = { engine.useAntidote(useQty); onFeedback("服用${useQty}个解毒散") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)), shape = RoundedCornerShape(4.dp)) {
-                            Text("使用", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Button(onClick = { engine.useAntidote(useQty); onFeedback("服用${useQty}个解毒散") }, colors = ButtonDefaults.buttonColors(containerColor = BorderWhite), shape = RoundedCornerShape(4.dp)) {
+                            Text("使用", color = TextWhite)
                         }
                     }
                 }

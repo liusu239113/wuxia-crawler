@@ -53,11 +53,12 @@ data class PlayerEntity(
     var stressVirtue: String = "",
 
     // 火折子
-    var torchEnergy: Int = 100,
+    var torchCount: Int = 0,
     var torchActive: Boolean = false,
     var torchSecondsLeft: Int = 0,
 
     // 解毒散
+    var antidoteCount: Int = 0,
     var antidoteActive: Boolean = false,
     var antidoteSecondsLeft: Int = 0
 )
