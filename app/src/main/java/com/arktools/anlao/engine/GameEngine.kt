@@ -642,7 +642,7 @@ class GameEngine(private val context: Context) {
 
     private fun priceScale(floor: Int = _realm.value.floor): Double {
         val f = floor.coerceAtLeast(1).toDouble()
-        return 1.0 + f * 0.09 + f * f * 0.006
+        return 1.0 + f * 0.05 + f * f * 0.002
     }
 
     private fun medicineCost(floor: Int = _realm.value.floor): Long = (90.0 * priceScale(floor)).toLong().coerceAtLeast(90L)
@@ -758,7 +758,7 @@ class GameEngine(private val context: Context) {
     fun goldDrop() {
         soundManager.playSfx("coin_pouch")
         val floor = _realm.value.floor
-        val base = Random.nextInt(60, 180)
+        val base = Random.nextInt(30, 100)
         val amt = (base * priceScale(floor) * Random.nextDouble(0.85, 1.25)).toLong().coerceAtLeast(50L)
         _player.value = _player.value.copy(gold = _player.value.gold + amt)
         addRealmLog("获得${amt}两白银。")
@@ -1058,15 +1058,17 @@ class GameEngine(private val context: Context) {
         if(condition=="guardian"){eHp=(eHp*1.5f).toInt();eAtk=(eAtk*1.3f).toInt();eDef=(eDef*1.3f).toInt();eCr*=1.1f;eCd*=1.2f}
         if(condition=="sboss"){eHp=(eHp*6f).toInt();eAtk=(eAtk*2f).toInt();eDef=(eDef*2f).toInt();eCr*=1.1f;eCd*=1.3f}
 
-        val floorMult=maxOf(1f,r.floor/3f)
+        val floorMult = if (r.floor <= 20) maxOf(1f, r.floor / 3f)
+            else if (r.floor <= 50) maxOf(1f, r.floor / 2.5f)
+            else maxOf(1f, (r.floor - 20).toFloat() * (r.floor - 20) / 40f)
         eHp=(eHp*floorMult).toInt(); eAtk=(eAtk*floorMult).toInt(); eDef=(eDef*floorMult).toInt()
         if(eSpd>2.5f)eSpd=2.5f
 
         val statSum=listOf(eHp.toFloat(),eAtk.toFloat(),eDef.toFloat(),eSpd*10f,eCr*2f,eCd*2f)
-        var expCalc=statSum.sum()/20; expCalc=(expCalc+expCalc*(lvl*0.1f))
-        if(expCalc>1000000f)expCalc=1000000f*(0.9f+Random.nextFloat()*0.2f)
+        var expCalc=statSum.sum()/20; expCalc=(expCalc+expCalc*(lvl*0.05f))
+        if(expCalc>50000f)expCalc=50000f*(0.9f+Random.nextFloat()*0.2f)
 
-        val gold=(expCalc*(0.9f+Random.nextFloat()*0.2f)*1.5f).toInt()
+        val gold=(expCalc*(0.7f+Random.nextFloat()*0.3f)*0.3f).toInt()
         val rep = reputationLevel(r)
         val dropChance = (34 + rep * 2).coerceAtMost(58)
         val drop=Random.nextInt(100)<dropChance
@@ -1593,20 +1595,24 @@ class GameEngine(private val context: Context) {
         soundManager.playSfx("qi_flow")
     }
 
-    /** 商城购买火折子（不同品质） */
+    /** 商城购买火折子（价格随境界递增） */
     fun buyTorch(tier: Int = 1): Boolean {
-        val price = when (tier) { 1 -> 30L; 2 -> 80L; 3 -> 200L; else -> 30L }
+        val realmMult = (_player.value.lvl / 10 + 1).toLong()
+        val basePrice = when (tier) { 1 -> 80L; 2 -> 200L; 3 -> 500L; else -> 80L }
+        val price = basePrice * realmMult
         val p = _player.value.copy()
-        if (p.gold < price) { addRealmLog("银两不足！"); soundManager.playSfx("blocked"); return false }
+        if (p.gold < price) { addRealmLog("银两不足！需${price}两。"); soundManager.playSfx("blocked"); return false }
         p.gold -= price; _player.value = p
         addRealmLog("购入火折子（${tier}级），花费${price}两。"); saveGame(); return true
     }
 
-    /** 商城购买解毒散（不同品质） */
+    /** 商城购买解毒散（价格随境界递增） */
     fun buyAntidote(tier: Int = 1): Boolean {
-        val price = when (tier) { 1 -> 50L; 2 -> 120L; 3 -> 300L; else -> 50L }
+        val realmMult = (_player.value.lvl / 10 + 1).toLong()
+        val basePrice = when (tier) { 1 -> 120L; 2 -> 300L; 3 -> 800L; else -> 120L }
+        val price = basePrice * realmMult
         val p = _player.value.copy()
-        if (p.gold < price) { addRealmLog("银两不足！"); soundManager.playSfx("blocked"); return false }
+        if (p.gold < price) { addRealmLog("银两不足！需${price}两。"); soundManager.playSfx("blocked"); return false }
         p.gold -= price; _player.value = p
         addRealmLog("购入解毒散（${tier}级），花费${price}两。"); saveGame(); return true
     }
@@ -1798,7 +1804,7 @@ class GameEngine(private val context: Context) {
             EquipmentRarity.LEGENDARY -> 3.8f
             EquipmentRarity.HEIRLOOM -> 5.5f
         }
-        val sellVal=(totalVal * (2.2f + r.floor * 0.035f) * rarityValueMult).toInt().coerceAtLeast(20)
+        val sellVal=(totalVal * (1.0f + r.floor * 0.015f) * rarityValueMult * 0.3f).toInt().coerceAtLeast(10)
 
         val equipTypeName = when {
             type.attr == EquipmentAttribute.DAMAGE -> "兵器"

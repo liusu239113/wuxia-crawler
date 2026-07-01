@@ -180,37 +180,70 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
 private fun ShopOverlay(engine: com.arktools.anlao.engine.GameEngine, player: com.arktools.anlao.data.PlayerEntity) {
     var torchQty by remember { mutableIntStateOf(1) }
     var antidoteQty by remember { mutableIntStateOf(1) }
+    var feedback by remember { mutableStateOf("") }
+    val realmMult = (player.lvl / 10 + 1).toLong()
 
     Dialog(onDismissRequest = { engine.closeShop() }) {
-        Column(Modifier.fillMaxWidth().background(BgPanel, RoundedCornerShape(12.dp)).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth().background(BgPanel, RoundedCornerShape(12.dp)).border(1.dp, GoldAccent, RoundedCornerShape(12.dp)).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssetImageBox("ui/icons/shop.png", 28, "商城")
-                Text("商城", color = GoldAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                AssetImageBox("ui/icons/shop.png", 32, "商城")
+                Column { Text("商城", color = GoldAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("银两: ${player.gold}", color = TextGray, fontSize = 11.sp) }
             }
-            Text("银两: ${player.gold}", color = TextGray, fontSize = 12.sp)
+            if (feedback.isNotEmpty()) {
+                Text(feedback, color = if (feedback.contains("购入")) Color(0xFF4CAF50) else HpRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            ShopItemRow(
+                iconPath = "ui/icons/fire_torch.png", iconDesc = "火折子",
+                name = "火折子", desc = "照亮地牢，防止心魔暴涨和持续掉血",
+                prices = listOf(80L * realmMult, 200L * realmMult, 500L * realmMult), tierNames = listOf("普通", "精良", "上乘"),
+                durations = listOf("60秒", "120秒", "240秒"),
+                qty = torchQty, onQtyChange = { torchQty = it },
+                onBuy = { tier -> val ok = engine.buyTorch(tier); feedback = if (ok) "购入火折子×${torchQty}！" else "银两不足（需${listOf(80L*realmMult,200L*realmMult,500L*realmMult)[tier]*torchQty}两）" }
+            )
+            ShopItemRow(
+                iconPath = "ui/icons/herb_antidote.png", iconDesc = "解毒散",
+                name = "解毒散", desc = "免疫中毒，深层地牢毒雾必备",
+                prices = listOf(120L * realmMult, 300L * realmMult, 800L * realmMult), tierNames = listOf("普通", "精良", "上乘"),
+                durations = listOf("30秒", "60秒", "120秒"),
+                qty = antidoteQty, onQtyChange = { antidoteQty = it },
+                onBuy = { tier -> val ok = engine.buyAntidote(tier); feedback = if (ok) "购入解毒散×${antidoteQty}！" else "银两不足（需${listOf(120L*realmMult,300L*realmMult,800L*realmMult)[tier]*antidoteQty}两）" }
+            )
+            TextButton(onClick = { engine.closeShop() }, modifier = Modifier.fillMaxWidth()) { Text("离开", color = TextGray) }
+        }
+    }
+}
+            }
 
-            // 火折子
+            if (feedback.isNotEmpty()) {
+                Text(feedback, color = if (feedback.contains("购入")) Color(0xFF4CAF50) else HpRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+
             ShopItemRow(
                 iconPath = "ui/icons/fire_torch.png", iconDesc = "火折子",
                 name = "火折子", desc = "照亮地牢，防止心魔暴涨和持续掉血",
                 prices = listOf(30L, 80L, 200L), tierNames = listOf("普通", "精良", "上乘"),
                 durations = listOf("60秒", "120秒", "240秒"),
                 qty = torchQty, onQtyChange = { torchQty = it },
-                onBuy = { tier -> engine.buyTorch(tier); engine.closeShop() }
+                onBuy = { tier ->
+                    val ok = engine.buyTorch(tier)
+                    feedback = if (ok) "购入火折子×${torchQty}！" else "银两不足（需${listOf(30L,80L,200L)[tier] * torchQty}两）"
+                }
             )
 
-            // 解毒散
             ShopItemRow(
                 iconPath = "ui/icons/herb_antidote.png", iconDesc = "解毒散",
                 name = "解毒散", desc = "免疫中毒，深层地牢毒雾必备",
                 prices = listOf(50L, 120L, 300L), tierNames = listOf("普通", "精良", "上乘"),
                 durations = listOf("30秒", "60秒", "120秒"),
                 qty = antidoteQty, onQtyChange = { antidoteQty = it },
-                onBuy = { tier -> engine.buyAntidote(tier); engine.closeShop() }
+                onBuy = { tier ->
+                    val ok = engine.buyAntidote(tier)
+                    feedback = if (ok) "购入解毒散×${antidoteQty}！" else "银两不足（需${listOf(50L,120L,300L)[tier] * antidoteQty}两）"
+                }
             )
 
-            TextButton(onClick = { engine.closeShop() }, modifier = Modifier.fillMaxWidth()) { Text("关闭", color = TextGray) }
+            TextButton(onClick = { engine.closeShop() }, modifier = Modifier.fillMaxWidth()) { Text("离开", color = TextGray) }
         }
     }
 }
@@ -270,74 +303,99 @@ private fun ShopItemRow(
 @Composable
 private fun BlacksmithOverlay(engine: com.arktools.anlao.engine.GameEngine, player: com.arktools.anlao.data.PlayerEntity) {
     var selectedSlot by remember { mutableIntStateOf(-1) }
+    var feedback by remember { mutableStateOf("") }
     val equipped = engine.parseEquipped()
     val item = equipped.getOrNull(selectedSlot)?.takeIf { it.category.isNotBlank() }
 
     Dialog(onDismissRequest = { engine.closeBlacksmith() }) {
-        Column(Modifier.fillMaxWidth().background(BgPanel, RoundedCornerShape(12.dp)).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().heightIn(max = 560.dp).background(BgPanel, RoundedCornerShape(12.dp)).border(1.dp, GoldAccent, RoundedCornerShape(12.dp)).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 标题
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssetImageBox("ui/icons/equipment.png", 28, "铁匠铺")
-                Text("铁匠铺", color = GoldAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                AssetImageBox("ui/icons/blacksmith.png", 32, "铁匠铺")
+                Column { Text("铁匠铺", color = GoldAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("银两: ${player.gold}", color = TextGray, fontSize = 11.sp) }
             }
-            Text("银两: ${player.gold}", color = TextGray, fontSize = 12.sp)
 
-            // 上方：选中的装备
-            Box(Modifier.fillMaxWidth().height(60.dp).border(1.dp, BorderWhite, RoundedCornerShape(8.dp)).background(BgDark, RoundedCornerShape(8.dp)).padding(8.dp),
-                contentAlignment = Alignment.Center) {
-                if (item != null) {
-                    Text("${item.rarity} ${item.category}  +${item.lvl}  耐久${item.durability}%", color = RarityCol[item.rarity] ?: TextWhite, fontSize = 13.sp)
-                } else {
-                    Text("点击下方选择装备", color = TextGray, fontSize = 12.sp)
+            // 选中装备信息
+            if (item != null) {
+                Box(Modifier.fillMaxWidth().border(1.dp, RarityCol[item.rarity] ?: BorderWhite, RoundedCornerShape(8.dp)).background(BgDark, RoundedCornerShape(8.dp)).padding(8.dp)) {
+                    Column {
+                        Text("${item.rarity} ${item.category}  +${item.lvl}  耐久${item.durability}%", color = RarityCol[item.rarity] ?: TextWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        val statText = item.stats.flatMap { it.entries }.joinToString("  ") { (k, v) -> "${statDisp(k)}+${formatStatValue(k, v)}" }
+                        Text(statText.ifBlank { "无额外属性" }, color = TextWhite, fontSize = 11.sp, lineHeight = 14.sp)
+                    }
                 }
+            } else {
+                Box(Modifier.fillMaxWidth().height(40.dp), contentAlignment = Alignment.Center) { Text("选择要操作的装备", color = TextGray, fontSize = 12.sp) }
             }
 
-            // 下方：装备九宫格
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (i in 0..2) {
-                    val eq = equipped.getOrNull(i)
-                    Box(Modifier.weight(1f).height(50.dp).border(1.dp, if (selectedSlot == i) GoldAccent else BorderWhite, RoundedCornerShape(6.dp))
-                        .background(BgDark, RoundedCornerShape(6.dp)).clickable { selectedSlot = i }.padding(4.dp),
-                        contentAlignment = Alignment.Center) {
-                        if (eq != null && eq.category.isNotBlank()) Text(eq.category.take(3), color = RarityCol[eq.rarity] ?: TextWhite, fontSize = 10.sp)
-                        else Text("空", color = TextGray, fontSize = 10.sp)
+            // 滚动装备列表
+            LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
+                itemsIndexed(equipped.filter { it.category.isNotBlank() }, key = { _, it -> "${it.type}_${it.category}_${it.lvl}" }) { idx, eq ->
+                    val realIdx = equipped.indexOf(eq)
+                    val isSelected = selectedSlot == realIdx
+                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp).border(1.dp, if (isSelected) GoldAccent else BorderWhite, RoundedCornerShape(6.dp))
+                        .background(if (isSelected) GoldAccent.copy(alpha = 0.1f) else BgDark, RoundedCornerShape(6.dp))
+                        .clickable { selectedSlot = realIdx; feedback = "" }.padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        EquipmentBadge(eq, 28)
+                        Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                            Text("${eq.rarity} ${eq.category}", color = RarityCol[eq.rarity] ?: TextWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("+${eq.lvl}", color = TextGray, fontSize = 10.sp)
+                                Text("${eq.stats.size}词条", color = TextGray, fontSize = 10.sp)
+                                Text("耐久${eq.durability}%", color = if (eq.durability > 50) TextGray else if (eq.durability > 20) Color(0xFFFFA000) else HpRed, fontSize = 10.sp)
+                            }
+                        }
+                        if (isSelected) Text("▸", color = GoldAccent, fontSize = 14.sp)
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (i in 3..5) {
-                    val eq = equipped.getOrNull(i)
-                    Box(Modifier.weight(1f).height(50.dp).border(1.dp, if (selectedSlot == i) GoldAccent else BorderWhite, RoundedCornerShape(6.dp))
-                        .background(BgDark, RoundedCornerShape(6.dp)).clickable { selectedSlot = i }.padding(4.dp),
-                        contentAlignment = Alignment.Center) {
-                        if (eq != null && eq.category.isNotBlank()) Text(eq.category.take(3), color = RarityCol[eq.rarity] ?: TextWhite, fontSize = 10.sp)
-                        else Text("空", color = TextGray, fontSize = 10.sp)
-                    }
-                }
+
+            // 反馈弹窗
+            if (feedback.isNotEmpty()) {
+                AlertDialog(onDismissRequest = { feedback = "" }, containerColor = BgPanel,
+                    title = { Text(if (feedback.contains("成功")) "操作成功" else "操作失败",
+                        color = if (feedback.contains("成功")) Color(0xFF4CAF50) else HpRed,
+                        fontWeight = FontWeight.Bold) },
+                    text = { Text(feedback, color = TextWhite) },
+                    confirmButton = { Button(onClick = { feedback = "" },
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent)) { Text("确定", color = Color.Black) } }
+                )
             }
 
             // 操作按钮
             if (item != null) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { engine.enhanceEquipped(selectedSlot) }, modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)), shape = RoundedCornerShape(6.dp)) {
-                        Text("强化 ${engine.enhanceSuccessRate(item)}%", color = TextWhite, fontSize = 12.sp)
+                val enhanceCost = engine.enhanceCost(item)
+                val reforgeCost = engine.reforgeCost(item)
+                val repairCost = engine.repairCost(item)
+                val rate = engine.enhanceSuccessRate(item)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Button(onClick = {
+                            val ok = engine.enhanceEquipped(selectedSlot)
+                            feedback = if (item.lvl >= 30) "已达上限+30" else if (ok) "强化成功！" else "银两不足（需${enhanceCost}两）"
+                        }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)), shape = RoundedCornerShape(6.dp)) {
+                            Text("强化 ${enhanceCost}两 ${rate}%", color = TextWhite, fontSize = 11.sp)
+                        }
+                        Button(onClick = {
+                            val ok = engine.reforgeEquipped(selectedSlot)
+                            feedback = if (ok) "重铸成功！" else "银两不足（需${reforgeCost}两）"
+                        }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6A1B9A)), shape = RoundedCornerShape(6.dp)) {
+                            Text("重铸 ${reforgeCost}两", color = TextWhite, fontSize = 11.sp)
+                        }
                     }
-                    Button(onClick = { engine.reforgeEquipped(selectedSlot) }, modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6A1B9A)), shape = RoundedCornerShape(6.dp)) {
-                        Text("重铸", color = TextWhite, fontSize = 12.sp)
+                    if (item.durability < 100) {
+                        Button(onClick = {
+                            val ok = engine.repairEquipment(selectedSlot)
+                            feedback = if (ok) "修复成功！" else "银两不足（需${repairCost}两）"
+                        }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)), shape = RoundedCornerShape(6.dp)) {
+                            Text("修复 ${repairCost}两  恢复耐久至满", color = TextWhite, fontSize = 11.sp)
+                        }
                     }
-                    Button(onClick = { engine.repairEquipment(selectedSlot) }, modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)), shape = RoundedCornerShape(6.dp)) {
-                        Text("修复", color = TextWhite, fontSize = 12.sp)
-                    }
-                }
-                if (item.durability < 100) {
-                    Text("耐久: ${item.durability}%  修复费: ${engine.repairCost(item)}两", color = TextGray, fontSize = 10.sp)
                 }
             }
-
-            TextButton(onClick = { engine.closeBlacksmith() }) { Text("关闭", color = TextGray) }
+            TextButton(onClick = { engine.closeBlacksmith() }, modifier = Modifier.fillMaxWidth()) { Text("离开", color = TextGray) }
         }
     }
 }
@@ -781,20 +839,205 @@ private fun MiniStat(label: String, value: String, color: Color) {
 // ==================== TAB 1: 行囊 ====================
 @Composable
 private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: com.arktools.anlao.data.PlayerEntity, onFeedback: (String) -> Unit) {
-    // 只在 equipped/inventory JSON 变化时才重新解析，避免频繁 JSON 反序列化
     val eq = remember(player.equipped) { engine.parseEquipped() }
     val inv = remember(player.inventory) { engine.parseInventory() }
     val activeSetBonuses = remember(player.equipped) { engine.activeSetBonusDescriptions() }
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<com.arktools.anlao.data.EquipmentItem?>(null) }
     var selectedEquippedIndex by remember { mutableIntStateOf(-1) }
+    var categoryFilter by remember { mutableIntStateOf(0) }
+    var useQty by remember { mutableIntStateOf(1) }
+
+    val categories = listOf("全部", "兵器", "护甲", "盾牌", "头盔", "鞋履", "饰品", "消耗品")
+    val filteredInv = if (categoryFilter == 0) inv else if (categoryFilter == 7) emptyList() else inv.filter { it.type == categories[categoryFilter] }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 6.dp)) {
+        // 标题行
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("行囊", color = TextWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text("${player.gold} 两白银", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
+            Box {
+                TextButton(onClick = { expanded = true }) { Text("批量出售", color = HpRed, fontSize = 12.sp) }
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false },
+                    modifier = Modifier.background(BgPanel).border(1.dp, GoldAccent, RoundedCornerShape(8.dp))) {
+                    (listOf("全部") + EquipmentRarity.entries.map { it.displayName }).forEach { r ->
+                        DropdownMenuItem(text = { Text(r, fontSize = 12.sp, color = RarityCol[r] ?: TextWhite) },
+                            colors = MenuDefaults.itemColors(textColor = RarityCol[r] ?: TextWhite),
+                            onClick = { expanded = false; engine.sellAll(r); selected = null })
+                    }
+                }
+            }
+        }
+
+        // 已装备 6 槽
+        Text("已装备 (6槽)", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
+        Row(Modifier.fillMaxWidth().border(1.dp, BorderWhite, RoundedCornerShape(8.dp)).padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+            val slotNames = remember { listOf("兵器", "护甲", "盾牌", "头盔", "鞋履", "饰品") }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (index in 0..2) {
+                    EquipmentSlot(eq.getOrNull(index)?.takeIf { it.category.isNotBlank() }, slotNames[index], Modifier.fillMaxWidth()) {
+                        eq.getOrNull(index)?.takeIf { it.category.isNotBlank() }?.let { selected = it; selectedEquippedIndex = index }
+                    }
+                }
+            }
+            Column(Modifier.width(116.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(96.dp).border(1.dp, GoldAccent, RoundedCornerShape(8.dp)).padding(4.dp), contentAlignment = Alignment.TopCenter) {
+                    AssetImageBox(player.portrait, 88, player.name)
+                }
+                EquipmentTotalStats(eq)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (index in 3..5) {
+                    EquipmentSlot(eq.getOrNull(index)?.takeIf { it.category.isNotBlank() }, slotNames[index], Modifier.fillMaxWidth()) {
+                        eq.getOrNull(index)?.takeIf { it.category.isNotBlank() }?.let { selected = it; selectedEquippedIndex = index }
+                    }
+                }
+            }
+        }
+
+        // 套装效果
+        if (activeSetBonuses.isNotEmpty()) {
+            Column(Modifier.fillMaxWidth().padding(top = 6.dp).background(BgPanel, RoundedCornerShape(6.dp)).padding(8.dp)) {
+                Text("已激活套装", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                activeSetBonuses.forEach { Text(it, color = TextGray, fontSize = 10.sp, lineHeight = 14.sp) }
+            }
+        }
+
+        // 选中装备详情
+        val selItem = selected
+        if (selItem != null) {
+            EquipmentDetail(item = selItem, engine = engine, equippedIndex = selectedEquippedIndex,
+                onUnequip = { if (selectedEquippedIndex >= 0) { engine.unequipItem(selectedEquippedIndex); selected = null; selectedEquippedIndex = -1 } })
+        }
+
+        // ===== 消耗品区 =====
+        val torchCount = engine.torchCount()
+        val antidoteCount = engine.antidoteCount()
+        if (torchCount > 0 || antidoteCount > 0 || player.torchActive || player.antidoteActive) {
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("消耗品", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                if (player.torchActive) Text("  火折 ${player.torchSecondsLeft}s", color = Color(0xFFFFA000), fontSize = 11.sp)
+                if (player.antidoteActive) Text("  解毒 ${player.antidoteSecondsLeft}s", color = Color(0xFF4CAF50), fontSize = 11.sp)
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // 火折子
+                if (torchCount > 0 || player.torchActive) {
+                    Column(Modifier.weight(1f).border(1.dp, BorderWhite, RoundedCornerShape(6.dp)).background(BgPanel, RoundedCornerShape(6.dp)).padding(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            AssetImageBox("ui/icons/fire_torch.png", 28, "火折子")
+                            Column { Text("火折子 ×${torchCount}", color = Color(0xFFFFA000), fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = { useQty = (useQty - 1).coerceAtLeast(1) }, contentPadding = PaddingValues(4.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("-", color = TextWhite, fontSize = 14.sp) }
+                            Text("$useQty", color = TextWhite, fontSize = 12.sp, modifier = Modifier.width(20.dp), textAlign = TextAlign.Center)
+                            Button(onClick = { useQty = (useQty + 1).coerceAtMost(torchCount) }, contentPadding = PaddingValues(4.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("+", color = TextWhite, fontSize = 14.sp) }
+                        }
+                        Button(onClick = { engine.useTorch(useQty); onFeedback("点燃${useQty}个火折子") }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFA000)), shape = RoundedCornerShape(4.dp)) {
+                            Text("使用", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                // 解毒散
+                if (antidoteCount > 0 || player.antidoteActive) {
+                    Column(Modifier.weight(1f).border(1.dp, BorderWhite, RoundedCornerShape(6.dp)).background(BgPanel, RoundedCornerShape(6.dp)).padding(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            AssetImageBox("ui/icons/herb_antidote.png", 28, "解毒散")
+                            Column { Text("解毒散 ×${antidoteCount}", color = Color(0xFF4CAF50), fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = { useQty = (useQty - 1).coerceAtLeast(1) }, contentPadding = PaddingValues(4.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("-", color = TextWhite, fontSize = 14.sp) }
+                            Text("$useQty", color = TextWhite, fontSize = 12.sp, modifier = Modifier.width(20.dp), textAlign = TextAlign.Center)
+                            Button(onClick = { useQty = (useQty + 1).coerceAtMost(antidoteCount) }, contentPadding = PaddingValues(4.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("+", color = TextWhite, fontSize = 14.sp) }
+                        }
+                        Button(onClick = { engine.useAntidote(useQty); onFeedback("服用${useQty}个解毒散") }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)), shape = RoundedCornerShape(4.dp)) {
+                            Text("使用", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ===== 背包分类标签 =====
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            categories.forEachIndexed { i, cat ->
+                Box(Modifier.weight(1f).clickable { categoryFilter = i }
+                    .background(if (categoryFilter == i) GoldAccent.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(4.dp))
+                    .padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+                    Text(cat, color = if (categoryFilter == i) GoldAccent else TextGray, fontSize = 11.sp)
+                }
+            }
+        }
+
+        // 背包物品列表
+        Text("背包", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+        if (categoryFilter == 7) {
+            // 消耗品分类
+            LazyColumn(Modifier.weight(1f)) {
+                item(key = "torch") {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp).border(1.dp, Color(0xFFFFA000).copy(alpha = 0.7f), RoundedCornerShape(6.dp)).background(BgPanel, RoundedCornerShape(6.dp)).padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        AssetImageBox("ui/icons/fire_torch.png", 36, "火折子")
+                        Column(Modifier.weight(1f)) {
+                            Text("火折子 ×${engine.torchCount()}", color = Color(0xFFFFA000), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            if (player.torchActive) Text("燃烧中 ${player.torchSecondsLeft}s", color = Color(0xFFFFA000), fontSize = 10.sp)
+                            else Text("照亮地牢，防止心魔暴涨", color = TextGray, fontSize = 10.sp)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = { useQty = (useQty - 1).coerceAtLeast(1) }, contentPadding = PaddingValues(6.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("-", color = TextWhite) }
+                            Text("$useQty", color = TextWhite, fontSize = 13.sp, modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
+                            Button(onClick = { useQty = (useQty + 1).coerceAtMost(engine.torchCount().coerceAtLeast(1)) }, contentPadding = PaddingValues(6.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("+", color = TextWhite) }
+                        }
+                        Button(onClick = { engine.useTorch(useQty); onFeedback("点燃${useQty}个火折子") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFA000)), shape = RoundedCornerShape(4.dp)) {
+                            Text("使用", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                item(key = "antidote") {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp).border(1.dp, Color(0xFF4CAF50).copy(alpha = 0.7f), RoundedCornerShape(6.dp)).background(BgPanel, RoundedCornerShape(6.dp)).padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        AssetImageBox("ui/icons/herb_antidote.png", 36, "解毒散")
+                        Column(Modifier.weight(1f)) {
+                            Text("解毒散 ×${engine.antidoteCount()}", color = Color(0xFF4CAF50), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            if (player.antidoteActive) Text("生效中 ${player.antidoteSecondsLeft}s", color = Color(0xFF4CAF50), fontSize = 10.sp)
+                            else Text("免疫中毒，深层地牢必备", color = TextGray, fontSize = 10.sp)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = { useQty = (useQty - 1).coerceAtLeast(1) }, contentPadding = PaddingValues(6.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("-", color = TextWhite) }
+                            Text("$useQty", color = TextWhite, fontSize = 13.sp, modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
+                            Button(onClick = { useQty = (useQty + 1).coerceAtMost(engine.antidoteCount().coerceAtLeast(1)) }, contentPadding = PaddingValues(6.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(4.dp)) { Text("+", color = TextWhite) }
+                        }
+                        Button(onClick = { engine.useAntidote(useQty); onFeedback("服用${useQty}个解毒散") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)), shape = RoundedCornerShape(4.dp)) {
+                            Text("使用", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        } else if (filteredInv.isEmpty()) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text(if (inv.isEmpty()) "背包空空如也" else "该分类下无装备", color = TextGray, fontSize = 12.sp)
+            }
+        } else {
+            LazyColumn(Modifier.weight(1f)) {
+                itemsIndexed(filteredInv, key = { i, item -> "${i}_${item.category}_${item.rarity}_${item.lvl}_${item.value}" }) { i, item ->
+                    InventoryItemRow(item,
+                        onEquip = { engine.equipItem(i); selected = null },
+                        onSell = { engine.sellItem(false, i); selected = null })
+                }
+            }
+        }
+    }
+}
             Box {
                 TextButton(onClick = { expanded = true }) { Text("批量出售", color = HpRed, fontSize = 12.sp) }
                 DropdownMenu(
@@ -853,21 +1096,7 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
                 item = selItem,
                 engine = engine,
                 equippedIndex = selectedEquippedIndex,
-                onUnequip = { if (selectedEquippedIndex >= 0) { engine.unequipItem(selectedEquippedIndex); selected = null; selectedEquippedIndex = -1 } },
-                onEnhance = {
-                    if (selectedEquippedIndex >= 0) {
-                        val ok = engine.enhanceEquipped(selectedEquippedIndex)
-                        selected = engine.parseEquipped().getOrNull(selectedEquippedIndex)
-                        onFeedback(if (ok) "强化成功" else "银两不足，强化失败")
-                    }
-                },
-                onReforge = {
-                    if (selectedEquippedIndex >= 0) {
-                        val ok = engine.reforgeEquipped(selectedEquippedIndex)
-                        selected = engine.parseEquipped().getOrNull(selectedEquippedIndex)
-                        onFeedback(if (ok) "重铸成功，词条已变化" else "银两不足，重铸失败")
-                    }
-                }
+                onUnequip = { if (selectedEquippedIndex >= 0) { engine.unequipItem(selectedEquippedIndex); selected = null; selectedEquippedIndex = -1 } }
             )
         }
 
@@ -933,10 +1162,14 @@ private fun EquipmentSlot(item: com.arktools.anlao.data.EquipmentItem?, slotName
         if (item == null) {
             Text(slotName, color = TextGray, fontSize = 10.sp)
         } else {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                EquipmentBadge(item, 22)
-                Text(item.category.take(3), color = RarityCol[item.rarity] ?: TextWhite, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                Text("品${item.lvl}", color = TextGray, fontSize = 9.sp)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                EquipmentBadge(item, 20)
+                Text(item.category.take(3), color = RarityCol[item.rarity] ?: TextWhite, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                // 耐久条
+                Box(Modifier.fillMaxWidth().height(3.dp).background(Color(0xFF333333), RoundedCornerShape(1.5.dp))) {
+                    val durColor = if (item.durability > 50) Color(0xFF4CAF50) else if (item.durability > 20) Color(0xFFFFA000) else HpRed
+                    Box(Modifier.fillMaxWidth(item.durability / 100f).fillMaxHeight().background(durColor, RoundedCornerShape(1.5.dp)))
+                }
             }
         }
     }
@@ -1027,24 +1260,18 @@ private fun EquipmentDetail(
     item: com.arktools.anlao.data.EquipmentItem,
     engine: com.arktools.anlao.engine.GameEngine,
     equippedIndex: Int,
-    onUnequip: () -> Unit,
-    onEnhance: () -> Unit,
-    onReforge: () -> Unit
+    onUnequip: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().padding(top = 6.dp).border(1.dp, RarityCol[item.rarity] ?: BorderWhite, RoundedCornerShape(8.dp)).background(BgPanel, RoundedCornerShape(8.dp)).padding(8.dp)) {
         Text("${item.rarity} ${item.category}", color = RarityCol[item.rarity] ?: TextWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        Text("${item.type} · 品阶${item.lvl} · 价值${item.value}两", color = TextGray, fontSize = 10.sp)
+        Text("${item.type} · 品阶+${item.lvl} · 耐久${item.durability}% · 价值${item.value}两", color = TextGray, fontSize = 10.sp)
         val statText = item.stats.flatMap { it.entries }.joinToString("  ") { (k, v) ->
             "${statDisp(k)}+${formatStatValue(k, v)}"
         }
         Text(statText.ifBlank { "无额外属性" }, color = TextWhite, fontSize = 11.sp, lineHeight = 16.sp)
         if (equippedIndex >= 0) {
-            Text("强化消耗 ${engine.enhanceCost(item)} 两，提升当前词条约8%", color = TextGray, fontSize = 10.sp)
-            Text("重铸消耗 ${engine.reforgeCost(item)} 两，重新随机该装备词条", color = TextGray, fontSize = 10.sp)
-            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onEnhance, modifier = Modifier.weight(1f)) { Text("强化", color = GoldAccent, fontSize = 12.sp) }
-                TextButton(onClick = onReforge, modifier = Modifier.weight(1f)) { Text("重铸", color = TextWhite, fontSize = 12.sp) }
-                TextButton(onClick = onUnequip, modifier = Modifier.weight(1f)) { Text("卸下", color = HpRed, fontSize = 12.sp) }
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                TextButton(onClick = onUnequip) { Text("卸下", color = HpRed, fontSize = 12.sp) }
             }
         }
     }
@@ -1072,11 +1299,11 @@ private fun InventoryItemRow(item: com.arktools.anlao.data.EquipmentItem, onEqui
         TextButton(onClick = onSell) { Text("出售", color = HpRed, fontSize = 11.sp) }
     }
 
-    if (showDetail) EquipmentDetailDialog(item) { showDetail = false }
+    if (showDetail) EquipmentDetailDialog(item, onEquip = { showDetail = false; onEquip() }) { showDetail = false }
 }
 
 @Composable
-private fun EquipmentDetailDialog(item: com.arktools.anlao.data.EquipmentItem, onDismiss: () -> Unit) {
+private fun EquipmentDetailDialog(item: com.arktools.anlao.data.EquipmentItem, onEquip: () -> Unit = {}, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().background(BgPanel, RoundedCornerShape(12.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1092,7 +1319,14 @@ private fun EquipmentDetailDialog(item: com.arktools.anlao.data.EquipmentItem, o
             } else {
                 Text("无额外属性", color = TextGray, fontSize = 12.sp)
             }
-            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("关闭", color = TextGray) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onEquip() }, modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1EFF00)),
+                    shape = RoundedCornerShape(6.dp)) { Text("装备", color = Color.Black, fontSize = 13.sp) }
+                Button(onClick = onDismiss, modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)),
+                    shape = RoundedCornerShape(6.dp)) { Text("关闭", color = TextWhite, fontSize = 13.sp) }
+            }
         }
     }
 }
@@ -1160,10 +1394,20 @@ private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: c
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = { engine.openShop() }, modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B6914)),
-                shape = RoundedCornerShape(6.dp)) { Text("商城", color = TextWhite, fontSize = 14.sp) }
+                shape = RoundedCornerShape(6.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    AssetImageBox("ui/icons/shop.png", 28, "商城")
+                    Text("商城", color = TextWhite, fontSize = 12.sp)
+                }
+            }
             Button(onClick = { engine.openBlacksmith() }, modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B4226)),
-                shape = RoundedCornerShape(6.dp)) { Text("铁匠铺", color = TextWhite, fontSize = 14.sp) }
+                shape = RoundedCornerShape(6.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    AssetImageBox("ui/icons/blacksmith.png", 28, "铁匠铺")
+                    Text("铁匠铺", color = TextWhite, fontSize = 12.sp)
+                }
+            }
         }
 
         Spacer(Modifier.height(6.dp))
