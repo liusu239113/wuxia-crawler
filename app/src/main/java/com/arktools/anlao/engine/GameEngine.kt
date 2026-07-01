@@ -1617,6 +1617,44 @@ class GameEngine(private val context: Context) {
     /** 获取解毒散库存 */
     fun antidoteCount(): Int = _player.value.antidoteSecondsLeft / 30 + if (_player.value.antidoteActive) 1 else 0
 
+    // ==================== 商城/铁匠铺 UI 控制 ====================
+
+    private val _showShop = MutableStateFlow(false)
+    val showShop: StateFlow<Boolean> = _showShop.asStateFlow()
+    private val _showBlacksmith = MutableStateFlow(false)
+    val showBlacksmith: StateFlow<Boolean> = _showBlacksmith.asStateFlow()
+
+    fun openShop() { _showShop.value = true }
+    fun closeShop() { _showShop.value = false }
+    fun openBlacksmith() { _showBlacksmith.value = true }
+    fun closeBlacksmith() { _showBlacksmith.value = false }
+
+    // ==================== 装备等级上限 ====================
+    private val MAX_ENHANCE_LEVEL = 30
+
+    fun migrateEquipmentCap() {
+        val equipped = parseEquipped().toMutableList()
+        var changed = false
+        for (i in equipped.indices) {
+            var item = equipped[i]
+            // 旧存档耐久为0时修复为100
+            if (item.durability == 0 && item.category.isNotBlank()) {
+                item = item.copy(durability = 100); changed = true
+            }
+            // 超过上限的装备按比例降级
+            if (item.lvl > MAX_ENHANCE_LEVEL) {
+                val capRatio = MAX_ENHANCE_LEVEL.toFloat() / item.lvl
+                item = item.copy(lvl = MAX_ENHANCE_LEVEL, stats = item.stats.map { sm -> sm.mapValues { it.value * capRatio } })
+                changed = true
+            }
+            equipped[i] = item
+        }
+        if (changed) {
+            _player.value = _player.value.copy(equipped = gson.toJson(equipped))
+            calculateStats(); saveGame()
+        }
+    }
+
     // ==================== 装备损耗 & 修复 ====================
 
     /** 战斗胜利后装备损耗 */
@@ -1826,6 +1864,7 @@ class GameEngine(private val context: Context) {
         val p=_player.value.copy()
         val item=equipped[idx]
         if (item.category.isBlank()) return false
+        if (item.lvl >= MAX_ENHANCE_LEVEL) { addRealmLog("已达强化上限+${MAX_ENHANCE_LEVEL}。"); soundManager.playSfx("blocked"); return false }
         val cost=enhanceCost(item)
         if(p.gold<cost){addRealmLog("银两不足，无法强化装备。");soundManager.playSfx("blocked");return false}
         p.gold-=cost
@@ -1894,6 +1933,9 @@ class GameEngine(private val context: Context) {
         try{
             val loadedPlayer = gson.fromJson(pj,PlayerEntity::class.java).copy(inCombat = false)
             if (MartialSect.entries.none { it.name == loadedPlayer.sect }) loadedPlayer.sect = MartialSect.WANDERER.name
+            // 旧存档兼容：Gson不会给新字段填默认值
+            if (loadedPlayer.torchEnergy == 0) loadedPlayer.torchEnergy = 100
+            migrateEquipmentCap()
             _player.value = loadedPlayer
             _realm.value=gson.fromJson(rj,RealmState::class.java).copy(isExploring=false,isPaused=true,isEventActive=false,currentEvent="")
             _combatState.value = null
