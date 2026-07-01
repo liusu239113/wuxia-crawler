@@ -213,40 +213,6 @@ private fun ShopOverlay(engine: com.arktools.anlao.engine.GameEngine, player: co
         }
     }
 }
-            }
-
-            if (feedback.isNotEmpty()) {
-                Text(feedback, color = if (feedback.contains("购入")) Color(0xFF4CAF50) else HpRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-
-            ShopItemRow(
-                iconPath = "ui/icons/fire_torch.png", iconDesc = "火折子",
-                name = "火折子", desc = "照亮地牢，防止心魔暴涨和持续掉血",
-                prices = listOf(30L, 80L, 200L), tierNames = listOf("普通", "精良", "上乘"),
-                durations = listOf("60秒", "120秒", "240秒"),
-                qty = torchQty, onQtyChange = { torchQty = it },
-                onBuy = { tier ->
-                    val ok = engine.buyTorch(tier)
-                    feedback = if (ok) "购入火折子×${torchQty}！" else "银两不足（需${listOf(30L,80L,200L)[tier] * torchQty}两）"
-                }
-            )
-
-            ShopItemRow(
-                iconPath = "ui/icons/herb_antidote.png", iconDesc = "解毒散",
-                name = "解毒散", desc = "免疫中毒，深层地牢毒雾必备",
-                prices = listOf(50L, 120L, 300L), tierNames = listOf("普通", "精良", "上乘"),
-                durations = listOf("30秒", "60秒", "120秒"),
-                qty = antidoteQty, onQtyChange = { antidoteQty = it },
-                onBuy = { tier ->
-                    val ok = engine.buyAntidote(tier)
-                    feedback = if (ok) "购入解毒散×${antidoteQty}！" else "银两不足（需${listOf(50L,120L,300L)[tier] * antidoteQty}两）"
-                }
-            )
-
-            TextButton(onClick = { engine.closeShop() }, modifier = Modifier.fillMaxWidth()) { Text("离开", color = TextGray) }
-        }
-    }
-}
 
 @Composable
 private fun ShopItemRow(

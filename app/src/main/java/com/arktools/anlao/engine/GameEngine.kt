@@ -470,7 +470,7 @@ class GameEngine(private val context: Context) {
                 if (Random.nextInt(3) == 1) {
                     val clvl = reputationLevel(r)
                     val cost = reputationCost(clvl)
-                    addRealmLog("发现黑市悬赏！缴纳${cost}两白银可提升江湖声望。（当前声望${clvl}重；效果：敌人更强、经验/银两与高品质战利品机会同步提高）", listOf("缴纳", "无视"))
+                    addRealmLog("发现黑市悬赏！缴纳${cost}两白银可提升江湖声望。（当前声望${clvl}重；效果：敌人更强、高品质战利品掉率提高）", listOf("缴纳", "无视"))
                 } else { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
             }
             "monarch" -> {
@@ -551,8 +551,8 @@ class GameEngine(private val context: Context) {
                     if (_player.value.gold < cost) { addRealmLog("银两不足。"); soundManager.playSfx("blocked") }
                     else {
                         _player.value = _player.value.copy(gold = _player.value.gold - cost)
-                        r.enemyScaling += 0.1f
-                        addRealmLog("江湖声望提升。（声望${clvl}重→${clvl + 1}重；敌人强度提高，经验/银两收益与高品质战利品机会提高；下次提升需${reputationCost(clvl + 1)}两）")
+                        r.enemyScaling += 0.2f
+                        addRealmLog("江湖声望提升。（声望${clvl}重→${clvl + 1}重；敌人强度大幅提升，高品质战利品机会提高；下次提升需${reputationCost(clvl + 1)}两）")
                         soundManager.playSfx("qi_flow")
                     }
                 } else ignoreEvent()
@@ -1060,7 +1060,7 @@ class GameEngine(private val context: Context) {
 
         val floorMult = if (r.floor <= 20) maxOf(1f, r.floor / 3f)
             else if (r.floor <= 50) maxOf(1f, r.floor / 2.5f)
-            else maxOf(1f, (r.floor - 20).toFloat() * (r.floor - 20) / 40f)
+            else maxOf(1f, (r.floor - 20).toFloat() * (r.floor - 20) / 27f)
         eHp=(eHp*floorMult).toInt(); eAtk=(eAtk*floorMult).toInt(); eDef=(eDef*floorMult).toInt()
         if(eSpd>2.5f)eSpd=2.5f
 
