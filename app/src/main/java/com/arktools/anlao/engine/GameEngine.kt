@@ -210,6 +210,31 @@ class GameEngine(private val context: Context) {
         if (p.skills.contains("DEVASTATOR")) p.stats.atk = (p.stats.atk*1.3f).toInt()
         if (p.skills.contains("BLOODTHIRST")) p.stats.vamp += 5f
         if (p.skills.contains("PRECISION")) p.stats.critRate += 8f
+        // 心魔值降属性：50以上开始影响，100以上大幅影响
+        if (p.stress >= 50) {
+            val stressPenalty = ((p.stress - 50) / 150f) // 50-200 → 0~1.0
+            p.stats.atk = (p.stats.atk * (1f - stressPenalty * 0.3f)).toInt().coerceAtLeast(1)
+            p.stats.def = (p.stats.def * (1f - stressPenalty * 0.3f)).toInt().coerceAtLeast(0)
+            p.stats.critRate -= stressPenalty * 5f
+            p.stats.vamp -= stressPenalty * 2f
+        }
+        // 负面特质效果
+        when (p.stressAffliction) {
+            "怯战" -> p.stats.atk = (p.stats.atk * 0.9f).toInt()
+            "暴躁" -> p.stats.def = (p.stats.def * 0.9f).toInt()
+            "多疑" -> p.stats.vamp -= 3f
+            "怯懦" -> p.stats.atkSpd *= 0.85f
+            "贪婪" -> p.stats.critRate -= 5f
+            "冷漠" -> p.stats.critRate = 0f
+            "疯狂" -> { p.stats.atk = (p.stats.atk * 1.2f).toInt(); p.stats.def = 0 }
+        }
+        // 正面特质效果
+        when (p.stressVirtue) {
+            "坚毅" -> p.stats.def = (p.stats.def * 1.15f).toInt()
+            "狂热" -> { p.stats.atk = (p.stats.atk * 1.15f).toInt(); p.stats.vamp += 5f }
+            "冷静" -> { p.stats.critRate += 10f; p.stats.critDmg += 20f }
+            "守护" -> { /* 每回合回血在战斗逻辑里处理 */ }
+        }
         p.stats.hp = oldHp.coerceIn(1, p.stats.hpMax)
         p.stats.hpPercent = (p.stats.hp.toFloat()/p.stats.hpMax*100f)
         _player.value = p.copy()
@@ -1497,9 +1522,12 @@ class GameEngine(private val context: Context) {
     fun addStress(amount: Int): String {
         val p = _player.value.copy()
         val actual = if (p.stressVirtue == "坚毅") amount / 2 else amount
-        p.stress = (p.stress + actual).coerceAtMost(200)
+        p.stress = (p.stress + actual).coerceIn(0, 200)
         _player.value = p; saveGame()
-        addRealmLog("心魔值+${actual}（${p.stress}/200）")
+        if (actual != 0) {
+            if (actual > 0) addRealmLog("心魔值+${actual}（${p.stress}/200）")
+            else addRealmLog("心魔值${actual}（${p.stress}/200）")
+        }
         return when {
             p.stress >= 200 -> "走火入魔"
             p.stress >= 100 && p.stressAffliction.isEmpty() && p.stressVirtue.isEmpty() -> "检定"
@@ -1573,10 +1601,9 @@ class GameEngine(private val context: Context) {
             }
         }
         _player.value = p; saveGame()
-        // 心魔增长
-        val stressGain = if (p.torchActive) 2 else 8
-        val floorBonus = _realm.value.floor / 10
-        val result = addStress(stressGain + floorBonus)
+        // 心魔变化：点燃火折子时每秒降3，无火折子时按层深增长
+        val stressChange = if (p.torchActive) -3 else (8 + _realm.value.floor / 10)
+        val result = addStress(stressChange)
         if (result == "检定") resolveStressCheck()
         // 无火折子持续扣血
         if (!p.torchActive) {

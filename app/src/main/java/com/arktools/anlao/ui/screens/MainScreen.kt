@@ -1223,21 +1223,21 @@ private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: c
             if (player.bonusStats.critDmg > 0) bonusParts.add("暴伤+${"%.0f".format(player.bonusStats.critDmg)}%")
             Text(bonusParts.joinToString("  "), color = GoldAccent, fontSize = 11.sp, lineHeight = 16.sp)
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth().border(1.dp, GoldAccent, RoundedCornerShape(8.dp)), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = { engine.openShop() }, modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = BorderWhite),
+                colors = ButtonDefaults.buttonColors(containerColor = BgDark),
                 shape = RoundedCornerShape(6.dp)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     AssetImageBox("ui/icons/shop.png", 28, "商城")
-                    Text("商城", color = TextWhite, fontSize = 12.sp)
+                    Text("商城", color = GoldAccent, fontSize = 12.sp)
                 }
             }
             Button(onClick = { engine.openBlacksmith() }, modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = BorderWhite),
+                colors = ButtonDefaults.buttonColors(containerColor = BgDark),
                 shape = RoundedCornerShape(6.dp)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     AssetImageBox("ui/icons/blacksmith.png", 28, "铁匠铺")
-                    Text("铁匠铺", color = TextWhite, fontSize = 12.sp)
+                    Text("铁匠铺", color = GoldAccent, fontSize = 12.sp)
                 }
             }
         }
