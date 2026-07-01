@@ -764,7 +764,7 @@ class GameEngine(private val context: Context) {
         val (k,v) = s.entries.random()
         when(k){"hp"->p.bonusStats.hp+=v;"atk"->p.bonusStats.atk+=v;"def"->p.bonusStats.def+=v;"atkSpd"->p.bonusStats.atkSpd+=v;"vamp"->p.bonusStats.vamp+=v;"critRate"->p.bonusStats.critRate+=v;"critDmg"->p.bonusStats.critDmg+=v}
         addRealmLog("祝福获得${statDisplay(k)}+${v}%！（祝福${p.blessing}重→${p.blessing+1}重）"); p.blessing++
-        calculateStats(); saveGame(); _player.value = p.copy()
+        _player.value = p.copy(); calculateStats(); saveGame()
     }
 
     private fun roomTransition() {
