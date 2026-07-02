@@ -1437,7 +1437,6 @@ private fun SettingsTab(
         }
     }
 }
-}
 
 @Composable
 private fun VolumeRow(label: String, value: Float, onChange: (Float) -> Unit) {
