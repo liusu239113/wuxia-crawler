@@ -197,12 +197,17 @@ class GameEngine(private val context: Context) {
             }
         }
         applySetBonuses(equippedItems, p.setBonusStats)
+        // 人物自身属性 = 基础 × 门派 × 境界，然后祝福%乘以自身属性，装备最后单独加
+        val ownHp = (p.baseStats.hpMax*(1f+sect.hpBonus)).toInt()
+        val ownAtk = (p.baseStats.atk*(1f+sect.atkBonus)).toInt()
+        val ownDef = (p.baseStats.def*(1f+sect.defBonus)).toInt()
+        val ownSpd = p.baseStats.atkSpd*(1f+sect.atkSpdBonus)
         p.stats = PlayerStats(
             hp=0,
-            hpMax=(((p.baseStats.hpMax*(1f+p.bonusStats.hp/100f+sect.hpBonus)).toInt()*(1f+realm.hpBonus)).toInt()+p.equippedStats.hpMax+p.setBonusStats.hpMax).coerceAtLeast(1),
-            atk=(((p.baseStats.atk*(1f+p.bonusStats.atk/100f+sect.atkBonus)).toInt()*(1f+realm.atkBonus)).toInt()+p.equippedStats.atk+p.setBonusStats.atk+p.tempStats.atk.toInt()).coerceAtLeast(1),
-            def=(((p.baseStats.def*(1f+p.bonusStats.def/100f+sect.defBonus)).toInt()*(1f+realm.defBonus)).toInt()+p.equippedStats.def+p.setBonusStats.def).coerceAtLeast(0),
-            atkSpd=(p.baseStats.atkSpd*(1f+p.bonusStats.atkSpd/100f+sect.atkSpdBonus)+p.equippedStats.atkSpd/100f+p.setBonusStats.atkSpd/100f+p.tempStats.atkSpd).coerceAtMost(2.5f),
+            hpMax=(ownHp*(1f+realm.hpBonus)*(1f+p.bonusStats.hp/100f)).toInt()+p.equippedStats.hpMax+p.setBonusStats.hpMax,
+            atk=(ownAtk*(1f+realm.atkBonus)*(1f+p.bonusStats.atk/100f)).toInt()+p.equippedStats.atk+p.setBonusStats.atk+p.tempStats.atk.toInt(),
+            def=(ownDef*(1f+realm.defBonus)*(1f+p.bonusStats.def/100f)).toInt()+p.equippedStats.def+p.setBonusStats.def,
+            atkSpd=(ownSpd*(1f+p.bonusStats.atkSpd/100f)+p.equippedStats.atkSpd/100f+p.setBonusStats.atkSpd/100f+p.tempStats.atkSpd).coerceAtMost(2.5f),
             vamp=p.bonusStats.vamp+p.equippedStats.vamp+p.setBonusStats.vamp+sect.vampBonus,
             critRate=p.bonusStats.critRate+p.equippedStats.critRate+p.setBonusStats.critRate+sect.critRateBonus,
             critDmg=50f+p.bonusStats.critDmg+p.equippedStats.critDmg+p.setBonusStats.critDmg
@@ -794,7 +799,7 @@ class GameEngine(private val context: Context) {
         val s = mapOf("hp" to 10f,"atk" to 8f,"def" to 8f,"atkSpd" to 3f,"vamp" to 0.5f,"critRate" to 1f,"critDmg" to 6f)
         val (k,v) = s.entries.random()
         when(k){"hp"->p.bonusStats.hp+=v;"atk"->p.bonusStats.atk+=v;"def"->p.bonusStats.def+=v;"atkSpd"->p.bonusStats.atkSpd+=v;"vamp"->p.bonusStats.vamp+=v;"critRate"->p.bonusStats.critRate+=v;"critDmg"->p.bonusStats.critDmg+=v}
-        addRealmLog("祝福获得${statDisplay(k)}+${v}%！（祝福${p.blessing}重→${p.blessing+1}重）"); p.blessing++
+        addRealmLog("祝福获得${statDisplay(k)}+${v.toInt()}%！（祝福${p.blessing}重→${p.blessing+1}重）"); p.blessing++
         _player.value = p.copy(); calculateStats(); saveGame()
     }
 
@@ -1477,7 +1482,7 @@ class GameEngine(private val context: Context) {
         }
         _player.value = p
         calculateStats()
-        addRealmLog("看广告获得突破馈赠！${statDisplay(key)}+${boost}%！")
+        addRealmLog("看广告获得突破馈赠！${statDisplay(key)}+${boost.toInt()}%！")
         soundManager.playSfx("realm_breakthrough")
         saveGame()
     }
