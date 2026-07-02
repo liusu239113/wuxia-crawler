@@ -1,0 +1,37 @@
+# Android
+*.apk
+*.aab
+*.dex
+*.class
+bin/
+gen/
+out/
+.gradle/
+build/
+local.properties
+keystore.properties
+release/*.jks
+release/*.keystore
+release/*.zip
+release/build*/
+release/apk/
+*.iml
+.idea/
+*.log
+*.hprof
+
+# Temp files
+.workbuddy/
+crash_*.txt
+full_*.txt
+live_log.txt
+realtime_*.txt
+tap_crash_log.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Assets (already tracked in repo)
+# app/src/main/assets/ - keep tracked
+.local-secrets/
