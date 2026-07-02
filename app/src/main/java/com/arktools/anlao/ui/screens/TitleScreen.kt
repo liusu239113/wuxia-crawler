@@ -17,10 +17,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -60,36 +60,21 @@ fun TitleScreen(viewModel: GameViewModel, onNewGame: () -> Unit, onContinue: () 
         try { BitmapFactory.decodeStream(ctx.assets.open("ui/backgrounds/title.png"))?.asImageBitmap() } catch (_: Exception) { null }
     }
     val pulse = remember { Animatable(0.55f) }
+    var showNewGameDialog by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         while (true) {
             pulse.animateTo(1f, animationSpec = tween(800))
             pulse.animateTo(0.55f, animationSpec = tween(800))
-            // 新开江湖确认弹窗
-            if (showNewGameDialog) {
-                AlertDialog(onDismissRequest = { showNewGameDialog = false }, containerColor = BgPanel,
-                    title = { Text("新开江湖", color = GoldAccent, fontWeight = FontWeight.Bold) },
-                    text = { Text("当前存档将被覆盖，确定要重新开始吗？", color = TextWhite) },
-                    confirmButton = { Button(onClick = { showNewGameDialog = false; viewModel.engine.soundManager.playSfx("decline"); onNewGame() },
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent)) { Text("确定", color = Color.Black) } },
-                    dismissButton = { Button(onClick = { showNewGameDialog = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555))) { Text("取消", color = TextWhite) } }
-                )
-            }
-
-            // 重置存档确认弹窗
-            if (showResetDialog) {
-                AlertDialog(onDismissRequest = { showResetDialog = false }, containerColor = BgPanel,
-                    title = { Text("重置存档", color = DangerRed, fontWeight = FontWeight.Bold) },
-                    text = { Text("所有存档数据将被永久删除，此操作无法撤销！确定要继续吗？", color = TextWhite) },
-                    confirmButton = { Button(onClick = { showResetDialog = false; viewModel.engine.soundManager.playSfx("decline"); viewModel.engine.deleteSave(); onNewGame() },
-                        colors = ButtonDefaults.buttonColors(containerColor = DangerRed)) { Text("确认删除", color = TextWhite) } },
-                    dismissButton = { Button(onClick = { showResetDialog = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555))) { Text("取消", color = TextWhite) } }
-                )
-            }
         }
     }
-}
+
+    Box(Modifier.fillMaxSize().background(BgDark), contentAlignment = Alignment.Center) {
+        if (bg != null) {
+            Image(bitmap = bg, contentDescription = "开始背景", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.18f)))
+        }
         Column(
             Modifier.fillMaxWidth().safeDrawingPadding().padding(horizontal = 20.dp, vertical = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -163,6 +148,28 @@ fun TitleScreen(viewModel: GameViewModel, onNewGame: () -> Unit, onContinue: () 
                 color = TextWhite.copy(alpha = pulse.value),
                 fontSize = 12.sp,
                 modifier = Modifier.clickable { if (viewModel.engine.hasSave()) onContinue() else onNewGame() }
+            )
+        }
+
+        if (showNewGameDialog) {
+            AlertDialog(onDismissRequest = { showNewGameDialog = false }, containerColor = BgPanel,
+                title = { Text("新开江湖", color = GoldAccent, fontWeight = FontWeight.Bold) },
+                text = { Text("当前存档将被覆盖，确定要重新开始吗？", color = TextWhite) },
+                confirmButton = { Button(onClick = { showNewGameDialog = false; viewModel.engine.soundManager.playSfx("decline"); onNewGame() },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent)) { Text("确定", color = Color.Black) } },
+                dismissButton = { Button(onClick = { showNewGameDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555))) { Text("取消", color = TextWhite) } }
+            )
+        }
+
+        if (showResetDialog) {
+            AlertDialog(onDismissRequest = { showResetDialog = false }, containerColor = BgPanel,
+                title = { Text("重置存档", color = DangerRed, fontWeight = FontWeight.Bold) },
+                text = { Text("所有存档数据将被永久删除，此操作无法撤销！确定要继续吗？", color = TextWhite) },
+                confirmButton = { Button(onClick = { showResetDialog = false; viewModel.engine.soundManager.playSfx("decline"); viewModel.engine.deleteSave(); onNewGame() },
+                    colors = ButtonDefaults.buttonColors(containerColor = DangerRed)) { Text("确认删除", color = TextWhite) } },
+                dismissButton = { Button(onClick = { showResetDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555))) { Text("取消", color = TextWhite) } }
             )
         }
     }
