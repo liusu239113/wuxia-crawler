@@ -1,0 +1,1 @@
+﻿07-01 01:41:46.441 W/System.err( 9604): 	at android.view.Choreographer$CallbackRecord.run(Choreographer.java:2049)
