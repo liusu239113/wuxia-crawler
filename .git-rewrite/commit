@@ -1,0 +1,6 @@
+tree 84e9a8c8959d73c58027f84771c33d6a1b9850cb
+parent d5d6237348500d0fe453686c25e19e26f9456468
+author liusu239 <wenleirao@gmail.com> 1782846348 +0800
+committer liusu239 <wenleirao@gmail.com> 1782846348 +0800
+
+index on main: d5d6237 fix: upgrade Compose BOM 2024.01.00 -> 2024.02.02 + compiler 1.5.8 -> 1.5.10 to fix slot table corruption crash
