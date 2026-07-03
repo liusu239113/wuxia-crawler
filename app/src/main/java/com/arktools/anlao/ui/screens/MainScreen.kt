@@ -76,6 +76,7 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
     val showShop by engine.showShop.collectAsState()
     val showBlacksmith by engine.showBlacksmith.collectAsState()
     val tournament by engine.tournament.collectAsState()
+    val returnToTournament by engine.returnToTournamentPage.collectAsState()
 
     var tab by remember { mutableIntStateOf(0) }
     var currentPage by remember { mutableStateOf("main") }
@@ -136,6 +137,12 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
     LaunchedEffect(eFlinch) { if (eFlinch) { delay(150); engine._enemyFlinch.value = false } }
     LaunchedEffect(pFlinch) { if (pFlinch) { delay(150); engine._playerFlinch.value = false } }
     LaunchedEffect(toastMessage) { if (toastMessage != null) { delay(1500); toastMessage = null } }
+    LaunchedEffect(returnToTournament) {
+        if (returnToTournament && engine.consumeReturnToTournamentPage()) {
+            currentPage = "tournament"
+            tab = 2
+        }
+    }
 
     // ===== 主体 =====
     Box(Modifier.fillMaxSize().background(BgDark).safeDrawingPadding()) {
@@ -174,7 +181,7 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
             if (player.inCombat && !combatCs.enemyDead && !combatCs.playerDead) {
                 CombatOverlay(combatCs, cLog, sprite, eFlinch, pFlinch, dmgNums, engine)
             }
-            if (combatCs.playerDead || realm.currentEvent == "combat_result") {
+            if (combatCs.playerDead || realm.currentEvent == "combat_result" || realm.currentEvent == "tournament_result") {
                 CombatResultOverlay(combatCs, engine, onDeath)
             }
         }
@@ -1307,7 +1314,16 @@ private fun MailPage(
                     Text("奖励内容", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Text("白银：${tournament.mailGold} 两", color = TextWhite, fontSize = 12.sp)
                     Text("阅历：${tournament.mailExp}", color = TextWhite, fontSize = 12.sp)
-                    Text("装备：${if (tournament.mailEquipment) "武道会赠礼一件" else "无"}", color = TextWhite, fontSize = 12.sp)
+                    val equipmentText = if (tournament.mailEquipment) {
+                        val rarityText = tournament.mailEquipmentRarity.ifBlank { "随机" }
+                        "${rarityText}武道会赠礼${tournament.mailEquipmentCount.coerceAtLeast(1)}件"
+                    } else "无"
+                    Text("装备：$equipmentText", color = TextWhite, fontSize = 12.sp)
+                    val supplyText = buildList {
+                        if (tournament.mailTorchSuperior > 0) add("上乘火折子×${tournament.mailTorchSuperior}")
+                        if (tournament.mailAntidoteSuperior > 0) add("上乘解毒散×${tournament.mailAntidoteSuperior}")
+                    }.joinToString("、").ifBlank { "无" }
+                    Text("补给：$supplyText", color = TextWhite, fontSize = 12.sp)
                     Text("称号：${if (tournament.mailHonorTitle.isNotBlank()) tournament.mailHonorTitle else "无"}", color = if (tournament.mailHonorTitle.isNotBlank()) honorColor(tournament.mailHonorColor) else TextWhite, fontSize = 12.sp)
                 }
 
@@ -1361,7 +1377,7 @@ private fun TournamentPage(
                 AssetImageBox("ui/icons/tournament.png", 34, "武道")
                 Column {
                     Text("武道大会", color = GoldAccent, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                    Text("单机模拟千人排行 · 每日10次挑战 · 广告补3次", color = TextGray, fontSize = 11.sp)
+                    Text("群侠争榜 · 每日10次挑战 · 广告补3次", color = TextGray, fontSize = 11.sp)
                 }
             }
             TextButton(onClick = onBack) { Text("返回", color = TextGray, fontSize = 13.sp) }
@@ -1622,6 +1638,10 @@ private fun TournamentOpponentDialog(
                 TournamentInfoChip("防御", "${opponent.def}", TextWhite, Modifier.weight(1f))
                 TournamentInfoChip("身法", "%.2f".format(opponent.spd), TextWhite, Modifier.weight(1f))
             }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TournamentInfoChip("暴率", "%.1f%%".format(opponent.critRate), GoldAccent, Modifier.weight(1f))
+                TournamentInfoChip("暴伤", "%.0f%%".format(opponent.critDmg), GoldAccent, Modifier.weight(1f))
+            }
 
             SectionTitle("装备")
             opponent.gear.forEach { gear ->
@@ -1770,7 +1790,7 @@ private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: c
             AssetImageBox("ui/icons/tournament.png", 38, "武道大会")
             Column(Modifier.weight(1f)) {
                 Text("武道大会", color = GoldAccent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text("千人模拟排行 · 每日十次挑战 · 前五百名结算奖励", color = TextGray, fontSize = 10.sp, lineHeight = 14.sp)
+                Text("群侠争榜 · 每日十次挑战 · 前五百名结算奖励", color = TextGray, fontSize = 10.sp, lineHeight = 14.sp)
             }
             Text("进入", color = TextWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
@@ -1928,13 +1948,16 @@ private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eF
             Column(Modifier.fillMaxWidth().border(1.dp, BorderWhite, RoundedCornerShape(6.dp)).padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(cs.enemyName, color = TextWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                if (cs.enemyHonorTitle.isNotBlank()) TournamentHonorBadge(cs.enemyHonorTitle, cs.enemyHonorColor, Modifier.padding(top = 2.dp, bottom = 2.dp))
                 val phaseText = if (cs.battleType == "guardian" || cs.battleType == "sboss") " · ${cs.bossPhase}阶段" else ""
                 val phaseColor = if (cs.bossPhase >= 2) HpRed else GoldAccent
-                Text("${MartialRealmDisplay.enemyFromLevel(cs.enemyLvl)}$phaseText", color = phaseColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                val enemySubtitle = cs.enemySubtitle.ifBlank { "${MartialRealmDisplay.enemyFromLevel(cs.enemyLvl)}$phaseText" }
+                Text(enemySubtitle, color = phaseColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Box(Modifier.size(width = 190.dp, height = 150.dp), contentAlignment = Alignment.Center) {
                     Box(Modifier.size(130.dp).graphicsLayer { translationX = eShake; scaleX = eScale; scaleY = eScale }, contentAlignment = Alignment.Center) {
-                        if (bitmap != null) Image(bitmap, "enemy", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                        if (cs.enemyPortrait.isNotBlank()) AssetImageBox(cs.enemyPortrait, 130, cs.enemyName)
+                        else if (bitmap != null) Image(bitmap, "enemy", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                         else Text(cs.enemyName.take(1), color = TextWhite, fontSize = 40.sp, fontWeight = FontWeight.Bold)
                     }
                     dmgNums.filter { it.target == "enemy" }.takeLast(4).forEachIndexed { i, dn ->
@@ -2035,7 +2058,17 @@ private fun CombatResultOverlay(cs: CombatState, engine: com.arktools.anlao.engi
 
     Box(Modifier.fillMaxSize().background(BgDark.copy(alpha = 0.95f)).graphicsLayer { this.alpha = alpha.value }, contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (cs.playerDead) {
+            if (cs.battleType == "tournament") {
+                Text(if (cs.playerDead) "武道惜败" else "武道胜出！", color = if (cs.playerDead) HpRed else GoldAccent, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                Text(if (cs.playerDead) "排名不变，挑战次数已消耗。" else "排名与武道星级已结算。", color = TextWhite, fontSize = 16.sp)
+                Button(
+                    onClick = { engine.dismissCombatResult() },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text("返回武道大会", color = Color.Black, fontSize = 18.sp)
+                }
+            } else if (cs.playerDead) {
                 Text("败下阵来", color = HpRed, fontSize = 32.sp, fontWeight = FontWeight.Bold)
 
                 if (!showAdOptions) {
