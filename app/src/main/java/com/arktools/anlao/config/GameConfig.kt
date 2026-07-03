@@ -21,6 +21,53 @@ object GameConfig {
     const val HP_RECOVER_PCT = 20
 }
 
+/** 游戏难度：当前版本数值作为最高难度“生死论剑”基准线 */
+enum class GameDifficulty(
+    val displayName: String,
+    val rankName: String,
+    val description: String,
+    val enemyStatMultiplier: Float,
+    val enemySpeedMultiplier: Float,
+    val silverRewardMultiplier: Float,
+    val shopPriceMultiplier: Float,
+    val forgePriceMultiplier: Float,
+    val enhanceSuccessBonus: Int
+) {
+    EASY(
+        "初涉江湖",
+        "简单",
+        "适合熟悉暗牢规则：敌人更弱，银两更多，药物与锻造更便宜。",
+        0.70f,
+        0.85f,
+        1.60f,
+        0.65f,
+        0.55f,
+        25
+    ),
+    NORMAL(
+        "江湖好手",
+        "普通",
+        "适合稳定推进主线：敌人略弱，银两收益和价格更宽松。",
+        0.85f,
+        0.92f,
+        1.25f,
+        0.85f,
+        0.72f,
+        15
+    ),
+    HARD(
+        "生死论剑",
+        "困难",
+        "当前三档最高难度；敌强、收益和药价保持当前设置，但强化重铸更宽松。",
+        1.00f,
+        1.00f,
+        1.00f,
+        1.00f,
+        0.82f,
+        8
+    )
+}
+
 /** 敌人类型（匹配原版5类） */
 enum class EnemyArchetype {
     OFFENSIVE,  // 攻击型：高攻低防
@@ -123,15 +170,15 @@ object EnemyNames {
 
 /** 武学被动技能 */
 enum class MartialSkill(val displayName: String, val description: String) {
-    REMNANT_EDGE("残刃刀法", "每次攻击额外造成敌人当前气血8%的伤害"),
-    TITAN_WILL("铁骨铮铮", "每次攻击额外造成自身最大气血5%的伤害"),
-    DEVASTATOR("破军诀", "攻击伤害提升30%"),
-    RAMPAGER("嗜战", "每次攻击基础攻击力+5，战斗结束后重置"),
-    BLADE_DANCE("影舞步", "每次攻击提升身法，战斗结束后重置"),
-    PALADIN_HEART("金钟罩", "受到的所有伤害永久减少25%"),
-    AEGIS_THORNS("荆棘反甲", "敌人受到其造成伤害的15%反弹"),
-    BLOODTHIRST("嗜血术", "吸血效果额外提升5%"),
-    PRECISION("心明眼亮", "暴击率额外提升8%")
+    REMNANT_EDGE("照影断脉", "敌人伤势越重，攻击附加越高；最高不超过自身攻击80%"),
+    TITAN_WILL("孤灯守魄", "自身气血低于45%时，造成伤害提升22%"),
+    DEVASTATOR("摧锋入势", "攻击提升18%，暴击伤害提升12%"),
+    RAMPAGER("炉火连环", "本场战斗每次出手攻击+3，最多叠加36点"),
+    BLADE_DANCE("掠雨身法", "本场战斗每次出手暴击率+0.6%，最多叠加6%"),
+    PALADIN_HEART("玄息护体", "受到伤害降低18%；气血低于35%时降低28%"),
+    AEGIS_THORNS("借劲回澜", "受击后以伤害和防御反震敌人，单次有上限"),
+    BLOODTHIRST("归血微澜", "吸血提升4%，气血上限提升4%"),
+    PRECISION("星痕洞察", "暴击率提升5%，暴击伤害提升15%")
 }
 
 /** 门派成长路线 */

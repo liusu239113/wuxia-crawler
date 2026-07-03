@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.arktools.anlao.config.GameDifficulty
 import com.arktools.anlao.config.MartialSect
 import com.arktools.anlao.config.MartialSkill
 import com.arktools.anlao.viewmodel.GameViewModel
@@ -62,6 +63,7 @@ fun CreationScreen(viewModel: GameViewModel, onCreated: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("male") }
     var error by remember { mutableStateOf("") }
+    var difficulty by remember { mutableStateOf(GameDifficulty.HARD) }
 
     var hpAlloc by remember { mutableIntStateOf(5) }
     var atkAlloc by remember { mutableIntStateOf(5) }
@@ -92,7 +94,16 @@ fun CreationScreen(viewModel: GameViewModel, onCreated: () -> Unit) {
                     step = 1
                 }
             )
-            1 -> AllocationStep(
+            1 -> DifficultyStep(
+                selected = difficulty,
+                onSelect = { difficulty = it },
+                onBack = { step = 0 },
+                onNext = {
+                    viewModel.engine.soundManager.playSfx("wood_confirm")
+                    step = 2
+                }
+            )
+            2 -> AllocationStep(
                 name = name,
                 gender = gender,
                 hpAlloc = hpAlloc,
@@ -108,10 +119,10 @@ fun CreationScreen(viewModel: GameViewModel, onCreated: () -> Unit) {
                 onSpd = { delta -> if (applyAlloc(delta, spdAlloc, points)) { spdAlloc += delta; points -= delta } },
                 onSkill = { skill = it },
                 onSect = { sect = it },
-                onBack = { step = 0 },
+                onBack = { step = 1 },
                 onStart = {
                     viewModel.engine.soundManager.playSfx("wood_confirm")
-                    viewModel.engine.createCharacter(name, gender, hpAlloc, atkAlloc, defAlloc, spdAlloc, skill, sect)
+                    viewModel.engine.createCharacter(name, gender, hpAlloc, atkAlloc, defAlloc, spdAlloc, skill, sect, difficulty)
                     onCreated()
                 }
             )
@@ -168,7 +179,59 @@ private fun NameAndGenderStep(
         if (error.isNotEmpty()) Text(error, color = HpRed, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
 
         Spacer(Modifier.height(18.dp))
-        PixelButton("下一步：分配属性", onNext, Modifier.fillMaxWidth().height(48.dp), GoldAccent)
+        PixelButton("下一步：选择难度", onNext, Modifier.fillMaxWidth().height(48.dp), GoldAccent)
+    }
+}
+
+@Composable
+private fun DifficultyStep(
+    selected: GameDifficulty,
+    onSelect: (GameDifficulty) -> Unit,
+    onBack: () -> Unit,
+    onNext: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("选择难度", color = GoldAccent, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("生死论剑仍为最高难度，强化重铸已整体放宽", color = TextGray, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp, bottom = 18.dp))
+
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            GameDifficulty.entries.forEach { diff ->
+                val isSelected = selected == diff
+                Column(
+                    Modifier.fillMaxWidth()
+                        .border(1.dp, if (isSelected) GoldAccent else BorderDim, RoundedCornerShape(8.dp))
+                        .background(BgPanel, RoundedCornerShape(8.dp))
+                        .clickable { onSelect(diff) }
+                        .padding(12.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = isSelected,
+                            onClick = { onSelect(diff) },
+                            colors = RadioButtonDefaults.colors(selectedColor = GoldAccent, unselectedColor = TextGray),
+                            modifier = Modifier.size(30.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(diff.displayName, color = if (isSelected) GoldAccent else TextWhite, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                            Text(diff.rankName, color = TextGray, fontSize = 12.sp)
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(diff.description, color = TextGray, fontSize = 12.sp, lineHeight = 17.sp)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PixelButton("返回取名", onBack, Modifier.weight(1f).height(46.dp), BorderDim)
+            PixelButton("下一步：加点天赋", onNext, Modifier.weight(1f).height(46.dp), GoldAccent)
+        }
     }
 }
 

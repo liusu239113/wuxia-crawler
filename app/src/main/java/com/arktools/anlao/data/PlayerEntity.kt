@@ -28,6 +28,10 @@ data class PlayerEntity(
     var deaths: Int = 0,
     var playtime: Long = 0,
     var gold: Long = 500L,
+    var difficulty: String = "HARD",
+    var tournamentTitle: String = "",
+    var tournamentTitleColor: Long = 0xFFFFD700,
+    var tournamentTitleExpireWeek: String = "",
 
     var baseStats: PlayerStats = PlayerStats(),
     var bonusStats: BonusStats = BonusStats(),

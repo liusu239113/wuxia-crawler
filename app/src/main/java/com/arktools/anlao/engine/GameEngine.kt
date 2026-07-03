@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.random.Random
 import kotlin.math.roundToInt
+import java.time.LocalDate
+import java.time.temporal.WeekFields
+import java.util.Locale
 
 class GameEngine(private val context: Context) {
     val soundManager = SoundManager(context)
@@ -71,6 +74,60 @@ class GameEngine(private val context: Context) {
     data class QuestInfo(val chapter: String, val title: String, val objective: String, val progress: String, val story: String)
 
     data class DmgNumber(val id: Int, val text: String, val isCrit: Boolean, val target: String, val kind: String)
+
+    data class TournamentOpponent(
+        val id: Int,
+        val name: String,
+        val rank: Int,
+        val title: String,
+        val portrait: String,
+        val hp: Int,
+        val atk: Int,
+        val def: Int,
+        val spd: Float,
+        val stars: Int,
+        val gear: List<String>,
+        val honorTitle: String = "",
+        val honorColor: Long = 0xFFFFD700
+    )
+
+    data class TournamentState(
+        var rank: Int = 1000,
+        var tierIndex: Int = 0,
+        var stars: Int = 0,
+        var challengeLeft: Int = 10,
+        var lastRefreshDate: String = "",
+        var lastRewardDate: String = "",
+        var hasMail: Boolean = false,
+        var mailTitle: String = "",
+        var mailBody: String = "",
+        var mailGold: Long = 0L,
+        var mailExp: Int = 0,
+        var mailEquipment: Boolean = false,
+        var mailHonorTitle: String = "",
+        var mailHonorColor: Long = 0xFFFFD700,
+        var mailHonorExpireWeek: String = "",
+        var lastWeekKey: String = "",
+        var adChallengeCount: Int = 0,
+        var lastAdChallengeDate: String = "",
+        var lastNpcChallengeDate: String = "",
+        var npcDropEventsToday: Int = 0,
+        var wins: Int = 0,
+        var losses: Int = 0
+    )
+
+    private val _tournament = MutableStateFlow(TournamentState())
+    val tournament: StateFlow<TournamentState> = _tournament.asStateFlow()
+
+    private data class DungeonOddityEvent(
+        val message: String,
+        val correctChoice: String,
+        val wrongChoices: List<String>,
+        val rewardKind: String
+    )
+
+    private data class PendingDungeonOddityEvent(val event: DungeonOddityEvent, val correctIndex: Int)
+    private var pendingDungeonOddityEvent: PendingDungeonOddityEvent? = null
 
     private fun playerTitle(): String = if (_player.value.gender == "female") "女侠" else "少侠"
     private fun playerPronoun(): String = if (_player.value.gender == "female") "她" else "他"
@@ -162,12 +219,13 @@ class GameEngine(private val context: Context) {
     private var nextDamageNumberId = 1
 
     // ===== Character Creation =====
-    fun createCharacter(name: String, gender: String, hpAlloc: Int, atkAlloc: Int, defAlloc: Int, spdAlloc: Int, skill: MartialSkill, sect: MartialSect) {
+    fun createCharacter(name: String, gender: String, hpAlloc: Int, atkAlloc: Int, defAlloc: Int, spdAlloc: Int, skill: MartialSkill, sect: MartialSect, difficulty: GameDifficulty) {
         val p = _player.value.copy()
         p.name = name
         p.gender = gender
         p.portrait = if (gender == "female") "characters/hero_female.png" else "characters/hero_male.png"
         p.sect = sect.name
+        p.difficulty = difficulty.name
         p.baseStats = PlayerStats(hp=50*hpAlloc, hpMax=50*hpAlloc, atk=10*atkAlloc, def=10*defAlloc, atkSpd=0.4f+0.02f*spdAlloc)
         p.skills = skill.name; p.isAllocated = true
         _player.value = p
@@ -176,6 +234,26 @@ class GameEngine(private val context: Context) {
         created.stats.hp = created.stats.hpMax
         _player.value = created
         saveGame()
+    }
+
+    private fun currentDifficulty(): GameDifficulty = GameDifficulty.entries.find { it.name == _player.value.difficulty } ?: GameDifficulty.HARD
+
+    private fun scaleSilverReward(amount: Long): Long {
+        val multiplier = currentDifficulty().silverRewardMultiplier
+        if (multiplier == 1f) return amount
+        return (amount.toDouble() * multiplier.toDouble()).toLong().coerceAtLeast(1L)
+    }
+
+    private fun scaleShopPrice(amount: Long): Long {
+        val multiplier = currentDifficulty().shopPriceMultiplier
+        if (multiplier == 1f) return amount
+        return (amount.toDouble() * multiplier.toDouble()).toLong().coerceAtLeast(1L)
+    }
+
+    private fun scaleForgePrice(amount: Long): Long {
+        val multiplier = currentDifficulty().forgePriceMultiplier
+        if (multiplier == 1f) return amount
+        return (amount.toDouble() * multiplier.toDouble()).toLong().coerceAtLeast(1L)
     }
 
     // ===== Stats =====
@@ -209,12 +287,21 @@ class GameEngine(private val context: Context) {
             def=(ownDef*(1f+realm.defBonus)*(1f+p.bonusStats.def/100f)).toInt()+p.equippedStats.def+p.setBonusStats.def,
             atkSpd=(ownSpd*(1f+p.bonusStats.atkSpd/100f)+p.equippedStats.atkSpd/100f+p.setBonusStats.atkSpd/100f+p.tempStats.atkSpd).coerceAtMost(2.5f),
             vamp=p.bonusStats.vamp+p.equippedStats.vamp+p.setBonusStats.vamp+sect.vampBonus,
-            critRate=p.bonusStats.critRate+p.equippedStats.critRate+p.setBonusStats.critRate+sect.critRateBonus,
+            critRate=p.bonusStats.critRate+p.equippedStats.critRate+p.setBonusStats.critRate+sect.critRateBonus+p.tempStats.critRate,
             critDmg=50f+p.bonusStats.critDmg+p.equippedStats.critDmg+p.setBonusStats.critDmg
         )
-        if (p.skills.contains("DEVASTATOR")) p.stats.atk = (p.stats.atk*1.3f).toInt()
-        if (p.skills.contains("BLOODTHIRST")) p.stats.vamp += 5f
-        if (p.skills.contains("PRECISION")) p.stats.critRate += 8f
+        if (p.skills.contains("DEVASTATOR")) {
+            p.stats.atk = (p.stats.atk * 1.18f).toInt()
+            p.stats.critDmg += 12f
+        }
+        if (p.skills.contains("BLOODTHIRST")) {
+            p.stats.hpMax = (p.stats.hpMax * 1.04f).toInt()
+            p.stats.vamp += 4f
+        }
+        if (p.skills.contains("PRECISION")) {
+            p.stats.critRate += 5f
+            p.stats.critDmg += 15f
+        }
         // 心魔值降属性：50以上开始影响，100以上大幅影响
         if (p.stress >= 50) {
             val stressPenalty = ((p.stress - 50) / 150f) // 50-200 → 0~1.0
@@ -241,6 +328,10 @@ class GameEngine(private val context: Context) {
             "守护" -> { /* 每回合回血在战斗逻辑里处理 */ }
         }
         p.stats.hp = oldHp.coerceIn(1, p.stats.hpMax)
+        p.stats.vamp = p.stats.vamp.coerceAtLeast(0f)
+        p.stats.critRate = p.stats.critRate.coerceIn(0f, 95f)
+        p.stats.critDmg = p.stats.critDmg.coerceAtLeast(25f)
+        p.stats.atkSpd = p.stats.atkSpd.coerceIn(0.1f, 2.5f)
         p.stats.hpPercent = (p.stats.hp.toFloat()/p.stats.hpMax*100f)
         _player.value = p.copy()
     }
@@ -352,6 +443,11 @@ class GameEngine(private val context: Context) {
         tickTorchAndStress()
         // 心魔200走火入魔
         if (_player.value.stress >= 200) { forceRetreatFromStress(); return }
+        if (Random.nextInt(300) == 0) {
+            processEvent(r, "dungeon_oddity")
+            _realm.value = r
+            return
+        }
         val types = mutableListOf(
             "enemy", "enemy", "enemy", "enemy",
             "nothing", "nothing", "nothing", "nothing", "nothing",
@@ -492,7 +588,7 @@ class GameEngine(private val context: Context) {
                 if (Random.nextInt(2) == 1) {
                     val p = _player.value
                     if (p.blessing < 1) p.blessing = 1
-                    val cost = (p.blessing * (500.0 * (p.blessing * 0.5)) + 750).toLong()
+                    val cost = blessingCost(p.blessing)
                     addRealmLog("发现悟道碑文！供奉${cost}两白银可获得祝福。（祝福${p.blessing}重）", listOf("供奉", "无视"))
                 } else { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
             }
@@ -507,7 +603,77 @@ class GameEngine(private val context: Context) {
                 if (Random.nextInt(7) == 1) addRealmLog("前方传来恐怖的气息……似乎有武林至尊在此沉睡。", listOf("进入", "避开"))
                 else { nothingEvent(); r.isEventActive = false; r.currentEvent = "" }
             }
+            "dungeon_oddity" -> dungeonOddityEvent()
         }
+    }
+
+    private fun dungeonOddityEvent() {
+        val events = listOf(
+            DungeonOddityEvent(
+                "墙缝里透出微弱金光，旁边三块青砖都有撬动痕迹，像是前人故意留下的暗记。",
+                "按下最冷的青砖",
+                listOf("撬开最亮的砖缝", "用力敲碎墙皮"),
+                "gold"
+            ),
+            DungeonOddityEvent(
+                "一盏长明灯忽然自行点燃，灯影在地上分成三道，只有一道没有随风晃动。",
+                "踏入不晃的灯影",
+                listOf("追逐最亮的灯影", "吹灭长明灯"),
+                "exp"
+            ),
+            DungeonOddityEvent(
+                "枯井里传来铁器轻响，井沿刻着三句残缺警语，似乎在提示真正的落点。",
+                "沿无苔井壁下探",
+                listOf("跳向有水声的深处", "扯断井边铁链"),
+                "equipment"
+            ),
+            DungeonOddityEvent(
+                "牢房角落散着三枚旧钥匙，钥匙齿痕各不相同，其中一枚没有沾灰。",
+                "拾起无灰短钥",
+                listOf("拾起鎏金长钥", "拾起染血铁钥"),
+                "gold"
+            ),
+            DungeonOddityEvent(
+                "残碑前浮着一行倒写文字：得其形者失其意。碑下三处石槽都有新鲜划痕。",
+                "摸索倒字对应的石槽",
+                listOf("照文字顺序按下", "把三处石槽全按下"),
+                "exp"
+            ),
+            DungeonOddityEvent(
+                "石室中央摆着一只空碗，碗边有药香，碗底却压着一道细小机关。",
+                "先转动碗底机关",
+                listOf("直接端起空碗", "把药渣倒入口中"),
+                "gold"
+            ),
+            DungeonOddityEvent(
+                "一具旧甲跪在门前，甲片间夹着三张残符，只有一张符纸没有被潮气泡烂。",
+                "抽出干燥残符",
+                listOf("抽出红字残符", "拔下整片甲叶"),
+                "equipment"
+            ),
+            DungeonOddityEvent(
+                "远处传来孩童数数声：一、三、二。声音停下后，三扇小门同时开了一线。",
+                "进入第二扇小门",
+                listOf("进入第一扇小门", "进入第三扇小门"),
+                "exp"
+            ),
+            DungeonOddityEvent(
+                "地上有一圈被踩乱的铜钱阵，阵眼处缺了一枚铜钱，旁边却多出一枚碎玉。",
+                "把碎玉放入阵眼",
+                listOf("补上一枚铜钱", "把铜钱全部收走"),
+                "gold"
+            ),
+            DungeonOddityEvent(
+                "暗门后挂着三只布袋，袋口分别系着死结、活结和反结，袋下没有任何脚印。",
+                "解开反结布袋",
+                listOf("割开死结布袋", "拉开活结布袋"),
+                "equipment"
+            )
+        )
+        val event = events.random()
+        val choices = (event.wrongChoices + event.correctChoice).shuffled()
+        pendingDungeonOddityEvent = PendingDungeonOddityEvent(event, choices.indexOf(event.correctChoice))
+        addRealmLog(event.message, choices)
     }
 
     private fun nothingEvent() {
@@ -567,7 +733,7 @@ class GameEngine(private val context: Context) {
                 if (idx == 0) {
                     val p = _player.value.copy()
                     if (p.blessing < 1) p.blessing = 1
-                    val cost = (p.blessing * (500.0 * (p.blessing * 0.5)) + 750).toLong()
+                    val cost = blessingCost(p.blessing)
                     if (p.gold < cost) { addRealmLog("银两不足。"); soundManager.playSfx("blocked") }
                     else { p.gold -= cost; _player.value = p; statBlessing(); soundManager.playSfx("wood_confirm") }
                 } else ignoreEvent()
@@ -592,6 +758,7 @@ class GameEngine(private val context: Context) {
             "room_gate" -> { if (idx == 0) roomTransition() else skipRoomGate(r) }
             "guardian_gate" -> { if (idx == 0) guardianBattle() else skipGuardianGate(r) }
             "monarch" -> { if (idx == 0) specialBossBattle() else { ignoreEvent(); r.isEventActive = false; r.currentEvent = "" } }
+            "dungeon_oddity" -> { dungeonOddityChoice(idx); r.isEventActive = false; r.currentEvent = "" }
             "floor_clear" -> {
                 if (idx == 0) advanceFloor()
                 else {
@@ -616,6 +783,71 @@ class GameEngine(private val context: Context) {
         val now = _realm.value
         if (!_player.value.inCombat && now.currentEvent != "combat_result") clearPendingEncounter()
         if (!_player.value.inCombat && now.currentEvent == eventBefore && now.currentEvent != "combat_result") _realm.value = r
+    }
+
+    private fun dungeonOddityChoice(idx: Int) {
+        val pending = pendingDungeonOddityEvent ?: return
+        pendingDungeonOddityEvent = null
+        if (idx == pending.correctIndex) {
+            grantDungeonOddityReward(pending.event.rewardKind)
+            return
+        }
+        applyDungeonOdditySetback()
+    }
+
+    private fun dungeonOddityRewardBase(): Double {
+        val p = _player.value
+        val realm = CultivationRealm.entries.find { it.name == p.realm } ?: CultivationRealm.NONE
+        return 45.0 + _realm.value.floor * 18.0 + p.lvl * 6.0 + realm.level * 35.0
+    }
+
+    private fun grantDungeonOddityReward(kind: String) {
+        soundManager.playSfx("coin_pouch")
+        when (kind) {
+            "equipment" -> {
+                val item = createEquipment()
+                addRealmLog("你破解暗牢机关，在隐秘夹层中找到了【${item.rarity}${item.category}】。")
+            }
+            "exp" -> {
+                val exp = (dungeonOddityRewardBase() * Random.nextDouble(0.45, 0.85)).toInt().coerceAtLeast(20)
+                playerExpGain(exp)
+                addRealmLog("你看懂了前人留下的暗记，从中悟得${exp}点阅历。")
+            }
+            else -> {
+                val silver = scaleSilverReward((dungeonOddityRewardBase() * Random.nextDouble(0.55, 1.10)).toLong().coerceAtLeast(30L))
+                _player.value = _player.value.copy(gold = _player.value.gold + silver)
+                addRealmLog("你避开暗牢机关，拾得前人藏下的${silver}两白银。")
+            }
+        }
+        saveGame()
+    }
+
+    private fun applyDungeonOdditySetback() {
+        val p = _player.value.copy()
+        when (Random.nextInt(4)) {
+            0 -> addRealmLog("你判断错了机关脉络，石室很快恢复沉寂，无事发生。")
+            1 -> {
+                val loss = minOf(p.gold, scaleShopPrice((18L + _realm.value.floor * 6L + p.lvl * 2L).coerceAtLeast(10L)))
+                p.gold -= loss
+                _player.value = p
+                addRealmLog("机关暗格突然合拢，震落了你包裹中的${loss}两白银。")
+            }
+            2 -> {
+                val dmg = (p.stats.hpMax * Random.nextInt(4, 8) / 100).coerceAtLeast(1)
+                p.stats.hp = (p.stats.hp - dmg).coerceAtLeast(1)
+                _player.value = p
+                addRealmLog("你触动残留暗弩，损失${dmg}点气血。")
+            }
+            else -> {
+                val stress = Random.nextInt(2, 5)
+                _player.value = p
+                addRealmLog("幻音在耳边盘旋片刻才散，你虽然脱身，却心神不宁。")
+                addStress(stress)
+            }
+        }
+        soundManager.playSfx("blocked")
+        calculateStats()
+        saveGame()
     }
 
     private fun skipRoomGate(r: RealmState) {
@@ -675,10 +907,10 @@ class GameEngine(private val context: Context) {
         return 1.0 + f * 0.05 + f * f * 0.002
     }
 
-    private fun medicineCost(floor: Int = _realm.value.floor): Long = (90.0 * priceScale(floor)).toLong().coerceAtLeast(90L)
-    private fun healerCost(floor: Int = _realm.value.floor): Long = (70.0 * priceScale(floor)).toLong().coerceAtLeast(70L)
-    private fun healerTeachCost(floor: Int = _realm.value.floor): Long = (130.0 * priceScale(floor)).toLong().coerceAtLeast(130L)
-    private fun merchantWeaponCost(floor: Int = _realm.value.floor): Long = (260.0 * priceScale(floor)).toLong().coerceAtLeast(260L)
+    private fun medicineCost(floor: Int = _realm.value.floor): Long = scaleShopPrice((90.0 * priceScale(floor)).toLong().coerceAtLeast(90L))
+    private fun healerCost(floor: Int = _realm.value.floor): Long = scaleShopPrice((70.0 * priceScale(floor)).toLong().coerceAtLeast(70L))
+    private fun healerTeachCost(floor: Int = _realm.value.floor): Long = scaleShopPrice((130.0 * priceScale(floor)).toLong().coerceAtLeast(130L))
+    private fun merchantWeaponCost(floor: Int = _realm.value.floor): Long = scaleShopPrice((260.0 * priceScale(floor)).toLong().coerceAtLeast(260L))
     private fun healerRecoverPercent(floor: Int = _realm.value.floor): Int = when {
         floor < 16 -> 100
         floor < 36 -> 85
@@ -688,10 +920,15 @@ class GameEngine(private val context: Context) {
 
     private fun reputationLevel(r: RealmState = _realm.value): Int = ((r.enemyScaling - 1f) * 10f).roundToInt().coerceAtLeast(1)
 
+    private fun blessingCost(level: Int): Long {
+        val safeLevel = level.coerceAtLeast(1)
+        return scaleShopPrice((safeLevel * (500.0 * (safeLevel * 0.5)) + 750).toLong())
+    }
+
     private fun reputationCost(level: Int = reputationLevel()): Long {
         val safeLevel = level.coerceAtLeast(1)
         val cost = if (safeLevel == 1) 10_000.0 else 50_000.0 * Math.pow(3.0, (safeLevel - 2).toDouble())
-        return cost.toLong().coerceAtMost(9_000_000_000L)
+        return scaleShopPrice(cost.toLong().coerceAtMost(9_000_000_000L))
     }
 
     private fun merchantEvent(idx: Int) {
@@ -789,7 +1026,7 @@ class GameEngine(private val context: Context) {
         soundManager.playSfx("coin_pouch")
         val floor = _realm.value.floor
         val base = Random.nextInt(30, 100)
-        val amt = (base * priceScale(floor) * Random.nextDouble(0.85, 1.25)).toLong().coerceAtLeast(50L)
+        val amt = scaleSilverReward((base * priceScale(floor) * Random.nextDouble(0.85, 1.25)).toLong().coerceAtLeast(50L))
         _player.value = _player.value.copy(gold = _player.value.gold + amt)
         addRealmLog("获得${amt}两白银。")
     }
@@ -838,7 +1075,7 @@ class GameEngine(private val context: Context) {
     }
 
     private fun grantFloorClearReward(clearedFloor: Int) {
-        val silver = (65L + clearedFloor * 28L + Random.nextLong(0L, 36L)).coerceAtMost(1200L)
+        val silver = scaleSilverReward((65L + clearedFloor * 28L + Random.nextLong(0L, 36L)).coerceAtMost(1200L))
         val p = _player.value.copy(gold = _player.value.gold + silver)
         if (clearedFloor % 4 == 0) p.bonusStats.hp += 1f
         if (clearedFloor % 5 == 0) p.bonusStats.atk += 1f
@@ -1091,14 +1328,21 @@ class GameEngine(private val context: Context) {
         val floorMult = if (r.floor <= 20) maxOf(1f, r.floor / 3f)
             else if (r.floor <= 50) maxOf(1f, r.floor / 2.5f)
             else maxOf(1f, (r.floor - 20).toFloat() * (r.floor - 20) / 27f)
-        eHp=(eHp*floorMult).toInt(); eAtk=(eAtk*floorMult).toInt(); eDef=(eDef*floorMult).toInt()
+        val difficulty = currentDifficulty()
+        eHp=(eHp*floorMult*difficulty.enemyStatMultiplier).toInt().coerceAtLeast(1)
+        eAtk=(eAtk*floorMult*difficulty.enemyStatMultiplier).toInt().coerceAtLeast(1)
+        eDef=(eDef*floorMult*difficulty.enemyStatMultiplier).toInt().coerceAtLeast(0)
+        eSpd=(eSpd*difficulty.enemySpeedMultiplier).coerceAtLeast(0.1f)
+        eCr*=difficulty.enemyStatMultiplier
+        eCd*=difficulty.enemyStatMultiplier
         if(eSpd>2.5f)eSpd=2.5f
 
         val statSum=listOf(eHp.toFloat(),eAtk.toFloat(),eDef.toFloat(),eSpd*10f,eCr*2f,eCd*2f)
         var expCalc=statSum.sum()/20; expCalc=(expCalc+expCalc*(lvl*0.05f))
         if(expCalc>50000f)expCalc=50000f*(0.9f+Random.nextFloat()*0.2f)
 
-        val gold=(expCalc*(0.7f+Random.nextFloat()*0.3f)*0.39f).toInt()
+        val baseGold=(expCalc*(0.7f+Random.nextFloat()*0.3f)*0.39f).toInt()
+        val gold=scaleSilverReward(baseGold.toLong()).toInt()
         val rep = reputationLevel(r)
         val dropChance = (34 + rep * 2).coerceAtMost(58)
         val drop=Random.nextInt(100)<dropChance
@@ -1119,11 +1363,23 @@ class GameEngine(private val context: Context) {
     fun startCombat(bgmType:String){
         _eventPrompt.value = null
         val p=_player.value
+        _combatLog.value = emptyList()
         _combatState.value = _combatState.value?.copy(combatId = nextCombatId++)
         _player.value = p.copy(inCombat = true)
+        addSectCombatIntro(p)
         soundManager.playBgm(context, selectCombatBgm(bgmType))
         soundManager.playSfx("enemy_appears")
         _realm.value = _realm.value.copy(isEventActive = true)
+    }
+
+    private fun addSectCombatIntro(p: PlayerEntity) {
+        when (MartialSect.entries.find { it.name == p.sect } ?: MartialSect.WANDERER) {
+            MartialSect.WANDERER -> addCombatLog("门派心法【江湖散人】生效：均衡根基已计入气血、攻击、防御与身法。")
+            MartialSect.XUANYUE -> addCombatLog("门派心法【玄岳门】生效：厚土护体已计入气血与防御。")
+            MartialSect.DUANYUN -> addCombatLog("门派心法【断云楼】生效：断云破势已计入攻击与暴击。")
+            MartialSect.LIUYING -> addCombatLog("门派心法【流影阁】生效：流影身法已计入身法与吸血，回血会以绿色浮字显示。")
+            MartialSect.BAICAO -> addCombatLog("门派心法【百草谷】生效：养气疗伤已计入气血、防御与吸血，吸血回血会以绿色浮字显示。")
+        }
     }
 
     private fun selectCombatBgm(bgmType: String): String {
@@ -1146,12 +1402,29 @@ class GameEngine(private val context: Context) {
         var dmg=cs.playerAtk*(cs.playerAtk.toFloat()/(cs.playerAtk+cs.enemyDef*1.5f)); dmg*=(0.9f+Random.nextFloat()*0.2f)
         val isCrit=Random.nextFloat()*100<cs.playerCritRate; val dType=if(isCrit){dmg=(dmg*(1f+cs.playerCritDmg/100f)).toInt().toFloat();"暴击"} else {dmg.toInt().toFloat();"伤害"}
         var kind = if (isCrit) "crit" else "normal"
-        if(p.skills.contains("REMNANT_EDGE")){dmg+=(cs.enemyHp*0.08f).toInt(); kind = "skill"}
-        if(p.skills.contains("TITAN_WILL")){dmg+=(cs.playerHpMax*0.05f).toInt(); kind = "skill"}
-        if(p.skills.contains("DEVASTATOR")){dmg=(dmg*1.3f).toInt().toFloat(); kind = "heavy"}
+        if(p.skills.contains("REMNANT_EDGE")){
+            val woundRatio = 1f - (cs.enemyHp.toFloat() / cs.enemyHpMax.coerceAtLeast(1))
+            val bonus = (cs.playerAtk * (0.12f + woundRatio * 0.68f)).toInt()
+                .coerceAtLeast(1)
+                .coerceAtMost((cs.playerAtk * 0.80f).toInt().coerceAtLeast(1))
+            dmg += bonus
+            kind = "skill"
+        }
+        if(p.skills.contains("TITAN_WILL") && cs.playerHp <= cs.playerHpMax * 45 / 100){
+            dmg=(dmg*1.22f).toInt().toFloat()
+            kind = "heavy"
+        }
         if (isCrit) kind = "crit"
-        if(p.skills.contains("RAMPAGER")){p.baseStats.atk+=5;p.tempStats.atk+=5f;calculateStats()}
-        if(p.skills.contains("BLADE_DANCE")){p.baseStats.atkSpd+=0.01f;p.tempStats.atkSpd+=0.01f;calculateStats()}
+        if(p.skills.contains("RAMPAGER") && p.tempStats.atk < 36f){
+            p.tempStats.atk += minOf(3f, 36f - p.tempStats.atk)
+            calculateStats()
+            cs.playerAtk = _player.value.stats.atk
+        }
+        if(p.skills.contains("BLADE_DANCE") && p.tempStats.critRate < 6f){
+            p.tempStats.critRate += minOf(0.6f, 6f - p.tempStats.critRate)
+            calculateStats()
+            cs.playerCritRate = _player.value.stats.critRate
+        }
         val ls=(dmg*cs.playerVamp/100f).toInt()
         cs.enemyHp=maxOf(0,cs.enemyHp-dmg.toInt()); cs.playerHp=minOf(cs.playerHpMax,cs.playerHp+ls)
         val cm=if(isCrit)"【暴击！】" else ""
@@ -1162,6 +1435,7 @@ class GameEngine(private val context: Context) {
             _dmgNumbers.value=(_dmgNumbers.value+DmgNumber(nextDamageNumberId++, "+${ls}", false, "player", "heal")).takeLast(10)
         }
         _enemyFlinch.value=true
+        syncPlayerHpFromCombat(cs)
         _combatState.value=cs.copy(); hpValidation()
         return cs.enemyHp>0&&cs.playerHp>0
     }
@@ -1179,7 +1453,10 @@ class GameEngine(private val context: Context) {
             addCombatLog("${cs.enemyName}施展破势重击！")
             soundManager.playSfx("realm_breakthrough")
         }
-        if(p.skills.contains("PALADIN_HEART"))dmg=(dmg*0.75f).toInt().toFloat()
+        if(p.skills.contains("PALADIN_HEART")){
+            val reduction = if (cs.playerHp <= cs.playerHpMax * 35 / 100) 0.72f else 0.82f
+            dmg=(dmg*reduction).toInt().toFloat()
+        }
         if (cs.bossPhase >= 2 && cs.battleType == "sboss" && Random.nextInt(4) == 0) {
             dmg *= 1.45f
             kind = "heavy"
@@ -1194,14 +1471,17 @@ class GameEngine(private val context: Context) {
             addCombatLog("${cs.enemyName}以护体真气震伤${p.name}，追加${shock}点伤害")
         }
         if(p.skills.contains("AEGIS_THORNS")){
-            val thorn = (dmg*0.15f).toInt()
+            val thorn = (dmg * 0.10f + cs.playerDef * 0.18f).toInt()
+                .coerceAtLeast(1)
+                .coerceAtMost((cs.playerHpMax * 0.08f).toInt().coerceAtLeast(1))
             cs.enemyHp=maxOf(0,cs.enemyHp-thorn)
-            _dmgNumbers.value=(_dmgNumbers.value+DmgNumber(nextDamageNumberId++, "反伤-${thorn}", false, "enemy", "thorns")).takeLast(10)
+            _dmgNumbers.value=(_dmgNumbers.value+DmgNumber(nextDamageNumberId++, "回澜-${thorn}", false, "enemy", "thorns")).takeLast(10)
+            addCombatLog("借劲回澜生效，反震${thorn}点伤害。")
         }
         addCombatLog("${cs.enemyName}对${p.name}造成${dmg.toInt()}点伤害${if (isCrit) "【暴击！】" else ""}")
         _dmgNumbers.value=(_dmgNumbers.value+DmgNumber(nextDamageNumberId++, if (isCrit) "-${dmg.toInt()}!" else "-${dmg.toInt()}", isCrit, "player", kind)).takeLast(10)
         soundManager.playSfx("blocked")
-        _playerFlinch.value=true; p.stats.hp=cs.playerHp; _player.value = p.copy()
+        _playerFlinch.value=true
         // 每回合特质效果
         if (p.stressVirtue == "守护") {
             val heal = (cs.playerHpMax * 0.03f).toInt().coerceAtLeast(1)
@@ -1215,8 +1495,16 @@ class GameEngine(private val context: Context) {
             addCombatLog("自残发作，损失${selfDmg}点气血。")
             _dmgNumbers.value=(_dmgNumbers.value+DmgNumber(nextDamageNumberId++, "-${selfDmg}", false, "player", "taken")).takeLast(10)
         }
+        syncPlayerHpFromCombat(cs)
         _combatState.value=cs.copy(); hpValidation()
         return cs.enemyHp>0&&cs.playerHp>0
+    }
+
+    private fun syncPlayerHpFromCombat(cs: CombatState) {
+        val p = _player.value.copy()
+        p.stats.hp = cs.playerHp.coerceIn(0, p.stats.hpMax.coerceAtLeast(1))
+        p.stats.hpPercent = if (p.stats.hpMax > 0) p.stats.hp.toFloat() / p.stats.hpMax * 100f else 0f
+        _player.value = p
     }
 
     private fun triggerBossPhaseTwo(cs: CombatState): Boolean {
@@ -1314,8 +1602,8 @@ class GameEngine(private val context: Context) {
         soundManager.stopBgm()
         soundManager.playSfx(if (victory) "victory_chime" else "decline")
         val p=_player.value; _player.value = p.copy(inCombat = false)
-        if(p.skills.contains("RAMPAGER")){p.baseStats.atk-=p.tempStats.atk.toInt();p.tempStats.atk=0f}
-        if(p.skills.contains("BLADE_DANCE")){p.baseStats.atkSpd-=p.tempStats.atkSpd;p.tempStats.atkSpd=0f}
+        if(p.skills.contains("RAMPAGER")) p.tempStats.atk=0f
+        if(p.skills.contains("BLADE_DANCE")) p.tempStats.critRate=0f
         calculateStats()
         if (victory) {
             val healed = _player.value.copy()
@@ -1348,6 +1636,7 @@ class GameEngine(private val context: Context) {
     fun returnAfterDeath() {
         _combatState.value = null
         _eventPrompt.value = null
+        pendingDungeonOddityEvent = null
         _combatLog.value = emptyList()
         val p = _player.value.copy(inCombat = false)
         val r = _realm.value.copy()
@@ -1406,6 +1695,7 @@ class GameEngine(private val context: Context) {
         p.stats.hpPercent = 100f
         _combatState.value = null
         _eventPrompt.value = null
+        pendingDungeonOddityEvent = null
         _combatLog.value = emptyList()
         _player.value = p
         val r = _realm.value.copy()
@@ -1437,7 +1727,7 @@ class GameEngine(private val context: Context) {
     fun chestRerollByAd() {
         val floor = _realm.value.floor
         val p = _player.value
-        val bonusGold = (Random.nextLong(80, 200) * priceScale(floor)).toLong().coerceAtLeast(100L)
+        val bonusGold = scaleSilverReward((Random.nextLong(80, 200) * priceScale(floor)).toLong().coerceAtLeast(100L))
         val bonusExp = (10 + floor * 3 + Random.nextInt(5))
         p.gold += bonusGold
         playerExpGain(bonusExp)
@@ -1609,13 +1899,13 @@ class GameEngine(private val context: Context) {
     fun torchUnitPrice(tier: Int, lvl: Int = _player.value.lvl): Long {
         val realmMult = (lvl / 10 + 1).toLong()
         val basePrice = when (tier) { 0 -> 48L; 1 -> 120L; 2 -> 300L; else -> 48L }
-        return (basePrice * realmMult).coerceAtMost(1000L)
+        return scaleShopPrice((basePrice * realmMult).coerceAtMost(1000L))
     }
 
     fun antidoteUnitPrice(tier: Int, lvl: Int = _player.value.lvl): Long {
         val realmMult = (lvl / 10 + 1).toLong()
         val basePrice = when (tier) { 0 -> 120L; 1 -> 300L; 2 -> 800L; else -> 120L }
-        return (basePrice * realmMult).coerceAtMost(1000L)
+        return scaleShopPrice((basePrice * realmMult).coerceAtMost(1000L))
     }
 
     private fun migrateConsumableCounts(p: PlayerEntity) {
@@ -1663,8 +1953,8 @@ class GameEngine(private val context: Context) {
             }
         }
         _player.value = p; saveGame()
-        // 心魔：点燃火折子时每秒降3恢复，没点燃时按层深增长
-        val stressChange = if (p.torchActive) -3 else (8 + _realm.value.floor / 10)
+        // 心魔：点燃火折子时缓慢平复，没点燃时按层深缓慢增长
+        val stressChange = if (p.torchActive) -1 else (3 + _realm.value.floor / 20)
         val result = addStress(stressChange)
         if (result == "检定") resolveStressCheck()
         // 无火折子持续扣血
@@ -1783,6 +2073,406 @@ class GameEngine(private val context: Context) {
     fun openBlacksmith() { soundManager.playSfx("blacksmith_open"); _showBlacksmith.value = true }
     fun closeBlacksmith() { _showBlacksmith.value = false }
 
+    // ==================== 武道大会（单机模拟排行） ====================
+
+    private val tournamentTiers = listOf("初试铜牌", "青木令", "白石令", "赤砂令", "黑铁令", "银钩令", "金错令", "玉衡令", "龙门令", "紫电令", "玄霄令", "天命令", "问鼎令")
+    data class TournamentHonor(val title: String, val color: Long)
+    private val tournamentTopHonors = mapOf(
+        1 to TournamentHonor("天下第一", 0xFFFFD700),
+        2 to TournamentHonor("并世双璧", 0xFFC0C0C0),
+        3 to TournamentHonor("探花名侠", 0xFFCD7F32)
+    )
+    private val tournamentBandHonors = listOf(
+        TournamentHonor("龙门魁首", 0xFFFF7043),
+        TournamentHonor("玉榜前席", 0xFFE040FB),
+        TournamentHonor("金令名宿", 0xFFFFD54F),
+        TournamentHonor("银钩锐士", 0xFFB0BEC5),
+        TournamentHonor("黑铁豪杰", 0xFF8D6E63)
+    )
+    private fun currentWeekKey(date: LocalDate = LocalDate.now()): String {
+        val wf = WeekFields.of(Locale.getDefault())
+        return "${date.get(wf.weekBasedYear())}-W${date.get(wf.weekOfWeekBasedYear())}"
+    }
+    fun tournamentHonorForRank(rank: Int): TournamentHonor? = when {
+        rank in 1..3 -> tournamentTopHonors[rank]
+        rank in 4..100 -> tournamentBandHonors[((rank - 1) / 20).coerceIn(0, tournamentBandHonors.lastIndex)]
+        else -> null
+    }
+    private fun normalizePlayerCompatibility(player: PlayerEntity): PlayerEntity {
+        var changed = false
+        if (player.tournamentTitle == null) { player.tournamentTitle = ""; changed = true }
+        if (player.tournamentTitleExpireWeek == null) { player.tournamentTitleExpireWeek = ""; changed = true }
+        if (player.tournamentTitleColor == 0L) { player.tournamentTitleColor = 0xFFFFD700; changed = true }
+        return if (changed) player.copy() else player
+    }
+    private fun normalizeTournamentState(t: TournamentState): TournamentState {
+        if (t.mailTitle == null) t.mailTitle = ""
+        if (t.mailBody == null) t.mailBody = ""
+        if (t.mailHonorTitle == null) t.mailHonorTitle = ""
+        if (t.mailHonorExpireWeek == null) t.mailHonorExpireWeek = ""
+        if (t.mailHonorColor == 0L) t.mailHonorColor = 0xFFFFD700
+        if (t.lastWeekKey == null) t.lastWeekKey = ""
+        if (t.lastAdChallengeDate == null) t.lastAdChallengeDate = ""
+        if (t.lastNpcChallengeDate == null) t.lastNpcChallengeDate = ""
+        t.rank = t.rank.coerceIn(1, 1000)
+        t.tierIndex = t.tierIndex.coerceIn(0, tournamentTiers.lastIndex)
+        t.stars = t.stars.coerceIn(0, 5)
+        t.challengeLeft = t.challengeLeft.coerceAtLeast(0)
+        t.adChallengeCount = t.adChallengeCount.coerceIn(0, 3)
+        t.npcDropEventsToday = t.npcDropEventsToday.coerceIn(0, 3)
+        return t
+    }
+
+    private fun appendTournamentMail(t: TournamentState, title: String, body: String) {
+        if (!t.hasMail) {
+            t.mailTitle = title
+            t.mailBody = body
+        } else {
+            t.mailTitle = if (t.mailTitle.isBlank()) title else t.mailTitle
+            t.mailBody = if (t.mailBody.isBlank()) body else t.mailBody + "\n" + body
+        }
+        t.hasMail = true
+    }
+    fun activeTournamentTitle(): TournamentHonor? {
+        val p = normalizePlayerCompatibility(_player.value)
+        if (p !== _player.value) _player.value = p
+        if (p.tournamentTitle.isBlank() || p.tournamentTitleExpireWeek != currentWeekKey()) return null
+        return TournamentHonor(p.tournamentTitle, p.tournamentTitleColor)
+    }
+    private val tournamentNames = listOf(
+        "大头鱼", "猫头鹰", "流苏水寒", "半夜不睡", "青衣过客", "南巷旧灯", "阿七要赢", "风里有糖", "碎银三两", "黑猫巡街",
+        "江湖小锅", "雨落无声", "不吃香菜", "白马西风", "刀口舔糖", "墨色小鱼", "云边酒客", "山鬼听雨", "小满不满", "一只纸鹤",
+        "冷月打铁", "旧巷卖灯", "草鞋快跑", "红袖不红", "铁锅炖剑", "檐下听雷", "无名路人", "北桥阿木", "南风知我", "半盏清茶",
+        "白糖糕", "夜雨小楼", "木叶藏刀", "醒醒别睡", "鱼玄机甲", "阿酒三杯", "猫爪轻轻", "灰衣少年", "折柳看灯", "孤舟不渡"
+    )
+    private val tournamentNamePartsA = listOf("半夜", "江边", "雨巷", "北桥", "南山", "旧灯", "猫爪", "鱼尾", "木叶", "青衫", "灰鸽", "白糖", "黑猫", "碎银", "小满", "流云", "听雷", "看雪", "卖灯", "醒醒")
+    private val tournamentNamePartsB = listOf("不睡", "摸鱼", "打铁", "听雨", "藏刀", "喝茶", "巡街", "快跑", "看灯", "炖剑", "折柳", "问路", "追风", "捡钱", "观星", "煮酒", "无声", "有糖", "轻轻", "不渡")
+    private val tournamentNameMarks = listOf("一", "二", "三", "七", "九", "甲", "乙", "小楼", "旧梦", "阿木", "阿桥", "寒江", "水寒", "纸鹤", "清茶", "过客", "少年", "路人", "西风", "南风")
+
+    private fun tournamentNickname(rank: Int): String {
+        if (rank <= tournamentNames.size) return tournamentNames[(rank - 1).coerceAtLeast(0)]
+        val index = (rank - tournamentNames.size - 1).coerceAtLeast(0)
+        val a = tournamentNamePartsA[index % tournamentNamePartsA.size]
+        val b = tournamentNamePartsB[(index / tournamentNamePartsA.size) % tournamentNamePartsB.size]
+        val mark = tournamentNameMarks[(index / (tournamentNamePartsA.size * tournamentNamePartsB.size)) % tournamentNameMarks.size]
+        return "$a$b$mark"
+    }
+
+    private fun tournamentRosterIdForRank(rank: Int, date: LocalDate = LocalDate.now()): Int {
+        val safeRank = rank.coerceIn(1, 1000)
+        val span = when {
+            safeRank <= 3 -> 0
+            safeRank <= 20 -> 2
+            safeRank <= 100 -> 5
+            safeRank <= 300 -> 14
+            safeRank <= 600 -> 32
+            else -> 62
+        }
+        val seed = date.year * 997 + date.dayOfYear * 37 + safeRank * 53
+        val offset = seed % (span * 2 + 1) - span
+        return (safeRank + offset).coerceIn(1, 1000)
+    }
+
+    private fun tournamentChallengeWindow(t: TournamentState): IntRange {
+        val end = t.rank - 1
+        val start = (t.rank - 10).coerceAtLeast(1)
+        return if (end >= start) start..end else 1..0
+    }
+
+    fun tournamentChallengeWindow(): IntRange {
+        refreshTournamentIfNeeded()
+        return tournamentChallengeWindow(_tournament.value)
+    }
+
+    fun canChallengeTournamentRank(rank: Int): Boolean {
+        refreshTournamentIfNeeded()
+        val t = _tournament.value
+        return t.challengeLeft > 0 && rank in tournamentChallengeWindow(t)
+    }
+
+    fun tournamentAdChancesLeft(): Int {
+        refreshTournamentIfNeeded()
+        return (3 - _tournament.value.adChallengeCount).coerceAtLeast(0)
+    }
+
+    fun grantTournamentAdChallenge(): String {
+        refreshTournamentIfNeeded()
+        val today = LocalDate.now().toString()
+        val t = normalizeTournamentState(_tournament.value.copy())
+        if (t.lastAdChallengeDate != today) {
+            t.lastAdChallengeDate = today
+            t.adChallengeCount = 0
+        }
+        if (t.adChallengeCount >= 3) return "今日广告补挑战次数已用尽。"
+        t.adChallengeCount++
+        t.challengeLeft++
+        _tournament.value = t
+        saveGame()
+        return "看广告获得1次武道大会挑战机会（今日${t.adChallengeCount}/3）。"
+    }
+
+    private fun applyDailyTournamentNpcActivity(t: TournamentState, date: LocalDate) {
+        val today = date.toString()
+        if (t.lastNpcChallengeDate == today) return
+        t.lastNpcChallengeDate = today
+        t.npcDropEventsToday = 0
+        if (t.rank >= 1000) return
+        val rng = Random(date.year * 1009 + date.dayOfYear * 131 + t.rank * 17 + _player.value.name.hashCode())
+        val eventCount = when {
+            t.rank <= 20 -> if (rng.nextInt(100) < 18) 1 else 0
+            t.rank <= 100 -> rng.nextInt(0, 2)
+            t.rank <= 500 -> rng.nextInt(0, 3)
+            else -> rng.nextInt(0, 4)
+        }.coerceIn(0, 3)
+        if (eventCount <= 0) return
+        val messages = mutableListOf<String>()
+        var currentRank = t.rank
+        repeat(eventCount) {
+            if (currentRank >= 1000) return@repeat
+            val drop = when {
+                currentRank <= 20 -> rng.nextInt(1, 3)
+                currentRank <= 100 -> rng.nextInt(1, 5)
+                currentRank <= 500 -> rng.nextInt(2, 9)
+                else -> rng.nextInt(4, 16)
+            }
+            val newRank = (currentRank + drop).coerceAtMost(1000)
+            if (newRank <= currentRank) return@repeat
+            val challengerRank = (currentRank + 1 + rng.nextInt((newRank - currentRank).coerceAtLeast(1))).coerceAtMost(1000)
+            val challenger = buildTournamentOpponent(challengerRank)
+            messages.add("${challenger.name}今日向你发起挑战，你惜败一招，排名从第${currentRank}名降至第${newRank}名。")
+            currentRank = newRank
+        }
+        if (messages.isNotEmpty()) {
+            t.rank = currentRank
+            t.npcDropEventsToday = messages.size.coerceAtMost(3)
+            appendTournamentMail(t, "武道大会挑战记录", messages.joinToString("\n"))
+        }
+    }
+
+    fun refreshTournamentIfNeeded() {
+        val date = LocalDate.now()
+        val today = date.toString()
+        val weekKey = currentWeekKey(date)
+        val t = normalizeTournamentState(_tournament.value.copy())
+        var changed = false
+        if (t.lastWeekKey.isBlank()) {
+            t.lastWeekKey = weekKey
+            changed = true
+        } else if (t.lastWeekKey != weekKey) {
+            val honor = tournamentHonorForRank(t.rank)
+            if (honor != null && t.mailHonorTitle.isBlank()) {
+                appendTournamentMail(t, "武道大会周榜称号", "上周周榜定榜第${t.rank}名，获封【${honor.title}】。称号领取后将持续一周。")
+                t.mailHonorTitle = honor.title
+                t.mailHonorColor = honor.color
+                t.mailHonorExpireWeek = weekKey
+            }
+            t.rank = ((t.rank + 35 + Random.nextInt(0, 61)).coerceIn(1, 1000))
+            t.stars = 0
+            t.lastWeekKey = weekKey
+            changed = true
+        }
+        if (t.lastRefreshDate != today) {
+            t.challengeLeft = 10
+            t.lastRefreshDate = today
+            t.lastAdChallengeDate = today
+            t.adChallengeCount = 0
+            changed = true
+            if (t.lastRewardDate != today && t.rank <= 500) {
+                val reward = tournamentDailyReward(t.rank)
+                appendTournamentMail(t, "武道大会日结奖励", "昨日结算排名第${t.rank}名，段位【${tournamentTierName(t.tierIndex)}】。")
+                t.mailGold += reward.first
+                t.mailExp += reward.second
+                t.mailEquipment = t.mailEquipment || reward.third
+                t.lastRewardDate = today
+            } else if (t.lastRewardDate != today) {
+                t.lastRewardDate = today
+            }
+        }
+        if (t.lastNpcChallengeDate != today) {
+            applyDailyTournamentNpcActivity(t, date)
+            changed = true
+        }
+        val p = normalizePlayerCompatibility(_player.value)
+        if (p.tournamentTitle.isNotBlank() && p.tournamentTitleExpireWeek != weekKey) {
+            _player.value = p.copy(tournamentTitle = "", tournamentTitleExpireWeek = "")
+            changed = true
+        } else if (p !== _player.value) {
+            _player.value = p
+            changed = true
+        }
+        if (changed) { _tournament.value = t; saveGame() }
+    }
+
+    fun tournamentTierName(index: Int = _tournament.value.tierIndex): String = tournamentTiers[index.coerceIn(0, tournamentTiers.lastIndex)]
+    fun tournamentStarsText(): String = "${_tournament.value.stars}/5星"
+    fun hasTournamentMail(): Boolean { refreshTournamentIfNeeded(); return _tournament.value.hasMail }
+
+    private fun tournamentVirtualFloor(rank: Int): Int = when {
+        rank <= 1 -> 78
+        rank <= 3 -> 74
+        rank <= 20 -> 68
+        rank <= 40 -> 62
+        rank <= 60 -> 56
+        rank <= 80 -> 50
+        rank <= 100 -> 45
+        rank <= 200 -> 38
+        rank <= 400 -> 30
+        rank <= 600 -> 22
+        rank <= 800 -> 15
+        else -> 8
+    }
+
+    private fun tournamentFloorScore(floor: Int): Float {
+        val f = floor.coerceIn(1, 100).toFloat()
+        val base = 520f + f * 55f + f * f * 2.2f
+        return base * currentDifficulty().enemyStatMultiplier
+    }
+
+    fun tournamentOpponents(): List<TournamentOpponent> {
+        refreshTournamentIfNeeded()
+        val t = _tournament.value
+        val challengeRanks = tournamentChallengeWindow(t).toList()
+        val behindRanks = if (t.rank < 1000) ((t.rank + 1)..(t.rank + 4).coerceAtMost(1000)).toList() else emptyList()
+        val ranks = (listOf(1, 2, 3) + challengeRanks + behindRanks)
+            .distinct()
+            .filter { it in 1..1000 && it != t.rank }
+        return ranks.map { buildTournamentOpponent(it) }
+    }
+
+    private fun buildTournamentOpponent(rank: Int): TournamentOpponent {
+        val p = _player.value
+        val rosterId = tournamentRosterIdForRank(rank)
+        val seed = rosterId * 97 + rank * 41 + LocalDate.now().dayOfYear * 31 + p.lvl * 13 + _realm.value.floor
+        val rng = Random(seed)
+        val virtualFloor = tournamentVirtualFloor(rank)
+        val targetPower = maxOf(tournamentFloorScore(virtualFloor), 480f + p.lvl * 32f + _realm.value.floor * 22f)
+        val variance = 0.92f + rng.nextFloat() * 0.18f
+        val hp = (targetPower * 4.8f * variance).toInt().coerceAtLeast(180)
+        val atk = (targetPower * 0.30f * (0.90f + rng.nextFloat() * 0.18f)).toInt().coerceAtLeast(28)
+        val def = (targetPower * 0.18f * (0.86f + rng.nextFloat() * 0.20f)).toInt().coerceAtLeast(12)
+        val spd = (0.52f + virtualFloor / 75f + rng.nextFloat() * 0.18f).coerceIn(0.35f, 2.3f) * currentDifficulty().enemySpeedMultiplier
+        val name = tournamentNickname(rosterId)
+        val title = tournamentTierName(tierIndexForRank(rank))
+        val portrait = if (rng.nextBoolean()) "characters/hero_male.png" else "characters/hero_female.png"
+        val gearPool = listOf("青锋剑", "雁翎刀", "铁骨扇", "梨花枪", "玄铁甲", "夜行衣", "龙鳞甲", "玄武盾", "青玉冠", "踏云靴", "青玉佩", "血玉戒")
+        val gear = gearPool.shuffled(rng).take(4).mapIndexed { index, item ->
+            val rarity = when {
+                rank <= 3 && index < 2 -> "传说"
+                rank <= 100 && index == 0 -> "史诗"
+                rank <= 300 -> listOf("稀有", "史诗", "良品")[rng.nextInt(3)]
+                else -> listOf("凡品", "良品", "稀有")[rng.nextInt(3)]
+            }
+            "$rarity$item"
+        }
+        val honor = tournamentHonorForRank(rank)
+        return TournamentOpponent(rosterId, name, rank, title, portrait, hp, atk, def, spd, rng.nextInt(0, 5), gear, honor?.title ?: "", honor?.color ?: 0xFFFFD700)
+    }
+
+    private fun tierIndexForRank(rank: Int): Int = when {
+        rank <= 1 -> 12
+        rank <= 3 -> 11
+        rank <= 10 -> 10
+        rank <= 30 -> 9
+        rank <= 60 -> 8
+        rank <= 100 -> 7
+        rank <= 160 -> 6
+        rank <= 240 -> 5
+        rank <= 350 -> 4
+        rank <= 500 -> 3
+        rank <= 700 -> 2
+        rank <= 850 -> 1
+        else -> 0
+    }
+
+    fun challengeTournament(rank: Int): String {
+        refreshTournamentIfNeeded()
+        val t = _tournament.value.copy()
+        if (t.challengeLeft <= 0) return "今日挑战次数已用尽。"
+        val window = tournamentChallengeWindow(t)
+        if (rank !in window) {
+            val rangeText = if (window.first > window.last) "当前已是榜首" else "当前只能挑战第${window.first}名到第${window.last}名"
+            return "$rangeText，不能跨大排名挑战。"
+        }
+        val opponent = buildTournamentOpponent(rank)
+        t.challengeLeft--
+        val promotionBattle = t.stars >= 5 && t.tierIndex < tournamentTiers.lastIndex
+        val playerScore = _player.value.stats.hpMax / 7f + _player.value.stats.atk * 4.2f + _player.value.stats.def * 3.2f + _player.value.stats.atkSpd * 90f + _player.value.stats.critRate * 8f
+        val baseOpponentScore = opponent.hp / 7f + opponent.atk * 4.2f + opponent.def * 3.2f + opponent.spd * 90f + opponent.stars * 18f
+        val opponentScore = if (promotionBattle) baseOpponentScore * 1.18f else baseOpponentScore
+        val winChance = (48f + (playerScore - opponentScore) / opponentScore.coerceAtLeast(1f) * 70f).coerceIn(18f, 88f)
+        val win = Random.nextFloat() * 100f < winChance
+        val msg: String
+        if (win) {
+            val oldRank = t.rank
+            t.rank = rank.coerceAtLeast(1)
+            t.wins++
+            if (promotionBattle) {
+                t.tierIndex = (t.tierIndex + 1).coerceAtMost(tournamentTiers.lastIndex)
+                t.stars = 0
+                msg = "击败晋段强敌${opponent.name}，排名 ${oldRank} → ${t.rank}，晋升【${tournamentTierName(t.tierIndex)}】！"
+            } else {
+                t.stars = (t.stars + 1).coerceAtMost(5)
+                msg = if (t.stars >= 5 && t.tierIndex < tournamentTiers.lastIndex) {
+                    "击败${opponent.name}，排名 ${oldRank} → ${t.rank}，武道星数已满，下次胜利将晋升下一段。"
+                } else {
+                    "击败${opponent.name}，排名 ${oldRank} → ${t.rank}，武道星数 ${t.stars}/5。"
+                }
+            }
+            soundManager.playSfx("victory_chime")
+        } else {
+            t.losses++
+            msg = if (promotionBattle) "晋段战惜败于${opponent.name}，胜算约${winChance.toInt()}%，今日剩余${t.challengeLeft}次。" else "惜败于${opponent.name}，看清了对方路数。胜算约${winChance.toInt()}%，今日剩余${t.challengeLeft}次。"
+            soundManager.playSfx("blocked")
+        }
+        _tournament.value = normalizeTournamentState(t)
+        saveGame()
+        return msg
+    }
+
+    private fun tournamentDailyReward(rank: Int): Triple<Long, Int, Boolean> = when {
+        rank == 1 -> Triple(scaleSilverReward(6000L), 2200, true)
+        rank <= 3 -> Triple(scaleSilverReward(3600L), 1500, true)
+        rank <= 100 -> Triple(scaleSilverReward(1800L), 900, true)
+        rank <= 200 -> Triple(scaleSilverReward(1200L), 650, Random.nextInt(100) < 35)
+        rank <= 300 -> Triple(scaleSilverReward(850L), 430, Random.nextInt(100) < 20)
+        rank <= 400 -> Triple(scaleSilverReward(560L), 260, false)
+        rank <= 500 -> Triple(scaleSilverReward(320L), 150, false)
+        else -> Triple(0L, 0, false)
+    }
+
+    fun claimTournamentMail(): String {
+        refreshTournamentIfNeeded()
+        val t = _tournament.value.copy()
+        if (!t.hasMail) return "暂无可领取邮件。"
+        val basePlayer = _player.value.copy(gold = _player.value.gold + t.mailGold)
+        if (t.mailHonorTitle.isNotBlank()) {
+            basePlayer.tournamentTitle = t.mailHonorTitle
+            basePlayer.tournamentTitleColor = t.mailHonorColor
+            basePlayer.tournamentTitleExpireWeek = t.mailHonorExpireWeek.ifBlank { currentWeekKey() }
+        }
+        _player.value = basePlayer
+        if (t.mailExp > 0) playerExpGain(t.mailExp)
+        if (t.mailEquipment) createEquipPrint()
+        val rewards = mutableListOf<String>()
+        if (t.mailGold > 0) rewards.add("${t.mailGold}两白银")
+        if (t.mailExp > 0) rewards.add("${t.mailExp}阅历")
+        if (t.mailEquipment) rewards.add("一件武道会赠礼装备")
+        if (t.mailHonorTitle.isNotBlank()) rewards.add("称号【${t.mailHonorTitle}】")
+        val msg = "领取成功：" + rewards.ifEmpty { listOf("已读邮件") }.joinToString("、")
+        t.hasMail = false
+        t.mailGold = 0L
+        t.mailExp = 0
+        t.mailEquipment = false
+        t.mailHonorTitle = ""
+        t.mailHonorExpireWeek = ""
+        t.mailTitle = ""
+        t.mailBody = ""
+        _tournament.value = t
+        soundManager.playSfx("coin_pouch")
+        saveGame()
+        return msg
+    }
+
     // ==================== 装备等级上限 ====================
     private val MAX_ENHANCE_LEVEL = 30
 
@@ -1830,7 +2520,7 @@ class GameEngine(private val context: Context) {
 
     fun repairCost(item: EquipmentItem): Long {
         val mul = when (item.rarity) { "凡品"->1L;"良品"->2L;"稀有"->4L;"史诗"->8L;"传说"->15L;"太古"->30L;else->1L }
-        return (100L + item.lvl * 20L) * mul
+        return scaleForgePrice((100L + item.lvl * 20L) * mul)
     }
 
     fun repairEquipment(idx: Int): Boolean {
@@ -1852,12 +2542,13 @@ class GameEngine(private val context: Context) {
 
     fun enhanceSuccessRate(item: EquipmentItem): Int {
         val nextLvl = item.lvl + 1
-        return when {
+        val baseRate = when {
             nextLvl <= 5 -> 100
             nextLvl <= 10 -> (100 - (nextLvl - 5) * 5).coerceAtLeast(70)
             nextLvl <= 15 -> (70 - (nextLvl - 10) * 8).coerceAtLeast(30)
             else -> (30 - (nextLvl - 15) * 5).coerceAtLeast(10)
         }
+        return (baseRate + currentDifficulty().enhanceSuccessBonus).coerceAtMost(100)
     }
 
     private fun statKeyToKey(s:String)=when(s){"气血"->"hp";"攻击"->"atk";"防御"->"def";"身法"->"atkSpd";"吸血"->"vamp";"暴击率"->"critRate";"暴击伤害"->"critDmg";else->s}
@@ -1952,7 +2643,7 @@ class GameEngine(private val context: Context) {
             EquipmentRarity.LEGENDARY -> 3.8f
             EquipmentRarity.HEIRLOOM -> 5.5f
         }
-        val sellVal=(totalVal * (1.0f + r.floor * 0.015f) * rarityValueMult * 0.3f).toInt().coerceAtLeast(10)
+        val sellVal=scaleSilverReward((totalVal * (1.0f + r.floor * 0.015f) * rarityValueMult * 0.3f).toLong().coerceAtLeast(10L)).toInt()
 
         val equipTypeName = when {
             type.attr == EquipmentAttribute.DAMAGE -> "兵器"
@@ -2012,9 +2703,9 @@ class GameEngine(private val context: Context) {
 
     fun enhanceCost(item: EquipmentItem): Long {
         val rarityMul = when (item.rarity) { "凡品"->1L; "良品"->2L; "稀有"->3L; "史诗"->5L; "传说"->8L; "太古"->12L; else->1L }
-        return (((item.lvl + 1) * 80L * rarityMul) * 0.7f).toLong().coerceAtLeast(60L)
+        return scaleForgePrice((((item.lvl + 1) * 80L * rarityMul) * 0.7f).toLong().coerceAtLeast(60L))
     }
-    fun reforgeCost(item: EquipmentItem): Long = (((item.lvl + 1) * 120L + _realm.value.floor * 45L) * 0.7f).toLong().coerceAtLeast(120L)
+    fun reforgeCost(item: EquipmentItem): Long = scaleForgePrice((((item.lvl + 1) * 120L + _realm.value.floor * 45L) * 0.7f).toLong().coerceAtLeast(120L))
 
     fun enhanceEquipped(idx:Int):Boolean {
         val equipped=parseEquipped().toMutableList(); if(idx<0||idx>=equipped.size)return false
@@ -2070,7 +2761,11 @@ class GameEngine(private val context: Context) {
 
     // ===== Save =====
     fun saveGame() {
-        prefs.edit().putString("player",gson.toJson(_player.value)).putString("realm",gson.toJson(_realm.value)).apply()
+        prefs.edit()
+            .putString("player",gson.toJson(_player.value))
+            .putString("realm",gson.toJson(_realm.value))
+            .putString("tournament",gson.toJson(_tournament.value))
+            .apply()
     }
 
     fun trySafeSave(): Boolean {
@@ -2088,22 +2783,32 @@ class GameEngine(private val context: Context) {
     fun loadGame():Boolean {
         val pj=prefs.getString("player",null)?:return false; val rj=prefs.getString("realm",null)?:return false
         try{
-            val loadedPlayer = gson.fromJson(pj,PlayerEntity::class.java).copy(inCombat = false)
+            val loadedPlayer = normalizePlayerCompatibility(gson.fromJson(pj,PlayerEntity::class.java).copy(inCombat = false))
             if (MartialSect.entries.none { it.name == loadedPlayer.sect }) loadedPlayer.sect = MartialSect.WANDERER.name
+            if (GameDifficulty.entries.none { it.name == loadedPlayer.difficulty }) loadedPlayer.difficulty = GameDifficulty.HARD.name
             // 旧存档兼容：Gson不会给新字段填默认值，旧的总数迁移为普通品质
             if (loadedPlayer.torchCount == 0 && loadedPlayer.torchActive && totalTorchCount(loadedPlayer) == 0) loadedPlayer.torchCount = 1
             migrateConsumableCounts(loadedPlayer)
-            migrateEquipmentCap()
+            if (loadedPlayer.tempStats.atk > 0f) loadedPlayer.baseStats.atk = (loadedPlayer.baseStats.atk - loadedPlayer.tempStats.atk.toInt()).coerceAtLeast(1)
+            if (loadedPlayer.tempStats.atkSpd > 0f) loadedPlayer.baseStats.atkSpd = (loadedPlayer.baseStats.atkSpd - loadedPlayer.tempStats.atkSpd).coerceAtLeast(0.1f)
+            loadedPlayer.tempStats = BonusStats()
             _player.value = loadedPlayer
             _realm.value=gson.fromJson(rj,RealmState::class.java).copy(isExploring=false,isPaused=true,isEventActive=false,currentEvent="")
+            val tj = prefs.getString("tournament", null)
+            _tournament.value = try {
+                if (tj.isNullOrBlank()) TournamentState() else normalizeTournamentState(gson.fromJson(tj, TournamentState::class.java) ?: TournamentState())
+            } catch (_: Exception) { TournamentState() }
+            migrateEquipmentCap()
             _combatState.value = null
             _eventPrompt.value = null
+            pendingDungeonOddityEvent = null
             _combatLog.value = emptyList()
             _availableUpgrades.value = emptyList()
             _showLevelUp.value = false
             _realmBreakthroughPending.value = false
             _realmBreakthroughInfo.value = null
             calculateStats()
+            refreshTournamentIfNeeded()
             return true
         }
         catch(_:Exception){return false}
@@ -2113,8 +2818,10 @@ class GameEngine(private val context: Context) {
         prefs.edit().clear().apply()
         _player.value = PlayerEntity()
         _realm.value = RealmState()
+        _tournament.value = TournamentState()
         _combatState.value = null
         _eventPrompt.value = null
+        pendingDungeonOddityEvent = null
         _combatLog.value = emptyList()
         _realmLog.value = emptyList()
         _availableUpgrades.value = emptyList()

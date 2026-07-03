@@ -56,8 +56,8 @@ jobs:
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0-${{ github.run_number }}
-          name: 暗牢江湖行 v1.0.0 Build ${{ github.run_number }}
+          tag_name: v1.0.3-${{ github.run_number }}
+          name: 暗牢江湖行 v1.0.3 Build ${{ github.run_number }}
           files: app/build/outputs/apk/release/app-release.apk
           draft: false
           prerelease: false

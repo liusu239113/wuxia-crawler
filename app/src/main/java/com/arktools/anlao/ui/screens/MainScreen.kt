@@ -29,6 +29,7 @@ import com.arktools.anlao.ui.components.AdLoadingOverlay
 import com.arktools.anlao.data.CombatState
 import com.arktools.anlao.config.EquipmentRarity
 import com.arktools.anlao.config.CultivationRealm
+import com.arktools.anlao.config.GameDifficulty
 import com.arktools.anlao.config.MartialRealmDisplay
 import com.arktools.anlao.config.MartialSect
 import com.arktools.anlao.viewmodel.GameViewModel
@@ -74,8 +75,10 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
     val sfxVolume by engine.soundManager.sfxLevel.collectAsState()
     val showShop by engine.showShop.collectAsState()
     val showBlacksmith by engine.showBlacksmith.collectAsState()
+    val tournament by engine.tournament.collectAsState()
 
     var tab by remember { mutableIntStateOf(0) }
+    var currentPage by remember { mutableStateOf("main") }
     var toastMessage by remember { mutableStateOf<String?>(null) }
     var isAdLoading by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -138,17 +141,29 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
     Box(Modifier.fillMaxSize().background(BgDark).safeDrawingPadding()) {
         Scaffold(
             containerColor = Color.Transparent,
-            topBar = { TopHeader(player, muted) { engine.soundManager.toggleMute() } },
-            bottomBar = { BottomTabs(tab) { engine.soundManager.playSfx("wood_confirm"); tab = it } }
+            topBar = { TopHeader(player, tournament.hasMail, engine) {
+                if (engine.realm.value.isExploring) engine.pauseExploring()
+                currentPage = "mail"
+            } },
+            bottomBar = { BottomTabs(tab) { nextTab ->
+                engine.soundManager.playSfx("wood_confirm")
+                if (nextTab != 0 && engine.realm.value.isExploring) engine.pauseExploring()
+                currentPage = "main"
+                tab = nextTab
+            } }
         ) { padding ->
             Box(Modifier.padding(padding).fillMaxSize()) {
-                when (tab) {
-                    0 -> key("tab_0") { AdventureTab(realm, player, rLog, engine) }
-                    1 -> key("tab_1") { InventoryTab(engine, player) { toastMessage = it } }
-                    2 -> key("tab_2") { CharacterTab(player, engine) }
-                    3 -> key("tab_3") { SettingsTab(engine, player, muted, bgmVolume, sfxVolume, onSaveFeedback = { success ->
-                        toastMessage = if (success) "保存成功" else "当前处于事件或战斗中，暂不能保存"
-                    }) { onDeath() } }
+                when (currentPage) {
+                    "mail" -> MailPage(engine, tournament, onBack = { currentPage = "main" }, onToast = { toastMessage = it })
+                    "tournament" -> TournamentPage(engine, tournament, player, onBack = { currentPage = "main" }, onToast = { toastMessage = it })
+                    else -> when (tab) {
+                        0 -> key("tab_0") { AdventureTab(realm, player, rLog, engine) }
+                        1 -> key("tab_1") { InventoryTab(engine, player) { toastMessage = it } }
+                        2 -> key("tab_2") { CharacterTab(player, engine) { currentPage = "tournament" } }
+                        3 -> key("tab_3") { SettingsTab(engine, player, muted, bgmVolume, sfxVolume, onSaveFeedback = { success ->
+                            toastMessage = if (success) "保存成功" else "当前处于事件或战斗中，暂不能保存"
+                        }) { onDeath() } }
+                    }
                 }
             }
         }
@@ -622,7 +637,7 @@ private fun ToastBubble(message: String?) {
 
 // ==================== TOP HEADER ====================
 @Composable
-private fun TopHeader(player: com.arktools.anlao.data.PlayerEntity, muted: Boolean, onToggleMute: () -> Unit) {
+private fun TopHeader(player: com.arktools.anlao.data.PlayerEntity, hasMail: Boolean, engine: com.arktools.anlao.engine.GameEngine, onOpenMail: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().background(BgPanel).padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -632,12 +647,14 @@ private fun TopHeader(player: com.arktools.anlao.data.PlayerEntity, muted: Boole
             AssetImageBox(player.portrait, 50, player.name)
         }
         Column(Modifier.weight(1f)) {
+            val honor = engine.activeTournamentTitle()
             val sect = MartialSect.entries.find { it.name == player.sect } ?: MartialSect.WANDERER
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(player.name, color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 Text("银两 ${player.gold}", color = GoldAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             Text("${MartialRealmDisplay.fromLevel(player.lvl)} · ${sect.displayName}", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            if (honor != null) TournamentHonorBadge(honor.title, honor.color, Modifier.padding(top = 2.dp))
             val hpPct = (player.stats.hp.toFloat() / player.stats.hpMax.coerceAtLeast(1)).coerceIn(0f, 1f)
             Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF3A2222))) {
                 Box(Modifier.fillMaxWidth(hpPct).fillMaxHeight().background(HpRed))
@@ -646,13 +663,14 @@ private fun TopHeader(player: com.arktools.anlao.data.PlayerEntity, muted: Boole
         }
         Box(
             Modifier.size(44.dp)
-                .border(1.dp, BorderWhite, RoundedCornerShape(8.dp))
+                .border(1.dp, if (hasMail) GoldAccent else BorderWhite, RoundedCornerShape(8.dp))
                 .background(BgDark, RoundedCornerShape(8.dp))
-                .clickable { onToggleMute() }
+                .clickable { onOpenMail() }
                 .padding(4.dp),
             contentAlignment = Alignment.Center
         ) {
-            AssetImageBox("ui/icons/sound.png", 26, if (muted) "静音" else "声音")
+            AssetImageBox("ui/icons/mail.png", 28, "邮件")
+            if (hasMail) Box(Modifier.align(Alignment.TopEnd).size(9.dp).background(HpRed, RoundedCornerShape(8.dp)))
         }
     }
 }
@@ -782,6 +800,8 @@ private fun logColor(log: String): Color = when {
 
 private fun combatLogColor(log: String): Color = when {
     log.contains("暴击") -> GoldAccent
+    listOf("守护生效", "吸血生效", "门派心法", "疗伤", "恢复").any { log.contains(it) } -> Color(0xFF66D18F)
+    listOf("借劲回澜", "反震").any { log.contains(it) } -> Color(0xFFB68CFF)
     log.contains("败") || log.contains("伤害") && !log.contains("对") -> HpRed
     log.contains("获得") || log.contains("掉落") -> GoldAccent
     log.contains("击败") || log.contains("胜") -> Color(0xFF66D18F)
@@ -1224,9 +1244,409 @@ private fun EquipmentDetailDialog(item: com.arktools.anlao.data.EquipmentItem, o
     }
 }
 
+// ==================== 邮件 ====================
+@Composable
+private fun MailPage(
+    engine: com.arktools.anlao.engine.GameEngine,
+    tournament: com.arktools.anlao.engine.GameEngine.TournamentState,
+    onBack: () -> Unit,
+    onToast: (String) -> Unit
+) {
+    LaunchedEffect(Unit) { engine.refreshTournamentIfNeeded() }
+
+    Column(Modifier.fillMaxSize().background(BgDark).padding(12.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssetImageBox("ui/icons/mail.png", 32, "邮件")
+                Column {
+                    Text("江湖信匣", color = GoldAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("武道大会日结奖励会送达此处", color = TextGray, fontSize = 11.sp)
+                }
+            }
+            TextButton(onClick = onBack) { Text("返回", color = TextGray, fontSize = 13.sp) }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        if (!tournament.hasMail) {
+            Box(
+                Modifier.fillMaxWidth().weight(1f)
+                    .border(1.dp, BorderWhite, RoundedCornerShape(10.dp))
+                    .background(BgPanel, RoundedCornerShape(10.dp))
+                    .padding(18.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AssetImageBox("ui/icons/mail.png", 56, "信")
+                    Text("暂无可领取邮件", color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("每日零点后，武道大会前500名会收到结算奖励。", color = TextGray, fontSize = 12.sp, textAlign = TextAlign.Center)
+                }
+            }
+        } else {
+            Column(
+                Modifier.fillMaxWidth()
+                    .border(1.dp, GoldAccent, RoundedCornerShape(10.dp))
+                    .background(BgPanel, RoundedCornerShape(10.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.size(44.dp).border(1.dp, GoldAccent, RoundedCornerShape(8.dp)).padding(5.dp), contentAlignment = Alignment.Center) {
+                        AssetImageBox("ui/icons/tournament.png", 34, "武道")
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(tournament.mailTitle.ifBlank { "武道大会来信" }, color = GoldAccent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("来自：武道会执事", color = TextGray, fontSize = 11.sp)
+                    }
+                    Text("未领取", color = HpRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Text(tournament.mailBody.ifBlank { "根据昨日武道大会排名，发放本日结算奖励。" }, color = TextWhite, fontSize = 13.sp, lineHeight = 19.sp)
+
+                Column(Modifier.fillMaxWidth().background(BgDark, RoundedCornerShape(8.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("奖励内容", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("白银：${tournament.mailGold} 两", color = TextWhite, fontSize = 12.sp)
+                    Text("阅历：${tournament.mailExp}", color = TextWhite, fontSize = 12.sp)
+                    Text("装备：${if (tournament.mailEquipment) "武道会赠礼一件" else "无"}", color = TextWhite, fontSize = 12.sp)
+                    Text("称号：${if (tournament.mailHonorTitle.isNotBlank()) tournament.mailHonorTitle else "无"}", color = if (tournament.mailHonorTitle.isNotBlank()) honorColor(tournament.mailHonorColor) else TextWhite, fontSize = 12.sp)
+                }
+
+                Button(
+                    onClick = { onToast(engine.claimTournamentMail()) },
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                    shape = RoundedCornerShape(6.dp)
+                ) { Text("领取奖励", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+            }
+        }
+    }
+}
+
+// ==================== 武道大会 ====================
+@Composable
+private fun TournamentPage(
+    engine: com.arktools.anlao.engine.GameEngine,
+    tournament: com.arktools.anlao.engine.GameEngine.TournamentState,
+    player: com.arktools.anlao.data.PlayerEntity,
+    onBack: () -> Unit,
+    onToast: (String) -> Unit
+) {
+    LaunchedEffect(Unit) { engine.refreshTournamentIfNeeded() }
+    val context = LocalContext.current
+    val activity = context as? Activity
+    var isAdLoading by remember { mutableStateOf(false) }
+    val challengeWindow = remember(tournament.rank, tournament.challengeLeft, tournament.lastRefreshDate) { engine.tournamentChallengeWindow() }
+    val adLeft = remember(tournament.adChallengeCount, tournament.lastAdChallengeDate, tournament.lastRefreshDate) { engine.tournamentAdChancesLeft() }
+    val opponents = remember(
+        tournament.rank,
+        tournament.challengeLeft,
+        tournament.adChallengeCount,
+        tournament.lastRefreshDate,
+        tournament.lastNpcChallengeDate,
+        player.lvl,
+        player.stats.hpMax,
+        player.stats.atk,
+        player.stats.def,
+        player.stats.atkSpd
+    ) { engine.tournamentOpponents() }
+    val topThree = opponents.filter { it.rank <= 3 }.sortedBy { it.rank }
+    val nearby = opponents.filter { it.rank > 3 }.sortedBy { it.rank }
+    val ahead = nearby.filter { it.rank < tournament.rank }
+    val behind = nearby.filter { it.rank > tournament.rank }
+    var selectedOpponent by remember { mutableStateOf<com.arktools.anlao.engine.GameEngine.TournamentOpponent?>(null) }
+
+    Column(Modifier.fillMaxSize().background(BgDark).padding(horizontal = 10.dp, vertical = 8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssetImageBox("ui/icons/tournament.png", 34, "武道")
+                Column {
+                    Text("武道大会", color = GoldAccent, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                    Text("单机模拟千人排行 · 每日10次挑战 · 广告补3次", color = TextGray, fontSize = 11.sp)
+                }
+            }
+            TextButton(onClick = onBack) { Text("返回", color = TextGray, fontSize = 13.sp) }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            TournamentInfoChip("我的排名", "第${tournament.rank}名", GoldAccent, Modifier.weight(1f))
+            TournamentInfoChip("段位", engine.tournamentTierName(), TextWhite, Modifier.weight(1f))
+            TournamentInfoChip("星数", engine.tournamentStarsText(), Color(0xFF66D18F), Modifier.weight(1f))
+            TournamentInfoChip("今日挑战", "${tournament.challengeLeft}次", TextWhite, Modifier.weight(1f))
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            val rangeText = if (challengeWindow.first > challengeWindow.last) "你已登顶" else "可挑战：第${challengeWindow.first}名 - 第${challengeWindow.last}名"
+            Text(rangeText, color = TextGray, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            Button(
+                onClick = {
+                    if (adLeft <= 0) {
+                        onToast("今日广告补挑战次数已用尽。")
+                    } else if (activity != null) {
+                        AdHelper.showRewardAd(
+                            activity = activity,
+                            onRewarded = { onToast(engine.grantTournamentAdChallenge()) },
+                            onLoadStart = { isAdLoading = true },
+                            onComplete = { isAdLoading = false },
+                            onCooldown = { remaining -> onToast(if (remaining <= 0L) "今日广告补挑战次数已用尽。" else "广告冷却中，请稍后再试。") }
+                        )
+                    } else {
+                        onToast("当前无法打开广告。")
+                    }
+                },
+                enabled = adLeft > 0,
+                colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, disabledContainerColor = Color(0xFF333333)),
+                shape = RoundedCornerShape(6.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
+            ) { Text("看广告+1次（剩${adLeft}/3）", color = if (adLeft > 0) Color.Black else TextGray, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Column(
+            Modifier.fillMaxWidth()
+                .border(1.dp, GoldAccent, RoundedCornerShape(10.dp))
+                .background(Color(0xEE17110D), RoundedCornerShape(10.dp))
+                .padding(horizontal = 8.dp, vertical = 10.dp)
+        ) {
+            Text("风云前三甲", color = GoldAccent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+                val second = topThree.firstOrNull { it.rank == 2 }
+                val first = topThree.firstOrNull { it.rank == 1 }
+                val third = topThree.firstOrNull { it.rank == 3 }
+                TournamentPodiumCard(second, height = 132, modifier = Modifier.weight(1f)) { if (second != null) selectedOpponent = second }
+                TournamentPodiumCard(first, height = 158, modifier = Modifier.weight(1.12f)) { if (first != null) selectedOpponent = first }
+                TournamentPodiumCard(third, height = 122, modifier = Modifier.weight(1f)) { if (third != null) selectedOpponent = third }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Text("附近榜单", color = TextWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
+        LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(ahead, key = { it.rank }) { opponent ->
+                TournamentRankRow(
+                    opponent = opponent,
+                    canChallenge = opponent.rank in challengeWindow && tournament.challengeLeft > 0,
+                    onOpen = { selectedOpponent = opponent },
+                    onChallenge = { onToast(engine.challengeTournament(opponent.rank)) }
+                )
+            }
+            item { TournamentPlayerRow(tournament, player) }
+            items(behind, key = { it.rank }) { opponent ->
+                TournamentRankRow(
+                    opponent = opponent,
+                    canChallenge = false,
+                    onOpen = { selectedOpponent = opponent },
+                    onChallenge = { onToast(engine.challengeTournament(opponent.rank)) }
+                )
+            }
+            item { Spacer(Modifier.height(8.dp)) }
+        }
+    }
+
+    selectedOpponent?.let { opponent ->
+        TournamentOpponentDialog(
+            opponent = opponent,
+            canChallenge = opponent.rank in challengeWindow && tournament.challengeLeft > 0,
+            onChallenge = { onToast(engine.challengeTournament(opponent.rank)); selectedOpponent = null },
+            onDismiss = { selectedOpponent = null }
+        )
+    }
+    AdLoadingOverlay(visible = isAdLoading)
+}
+
+private fun honorColor(color: Long): Color = Color(color)
+
+@Composable
+private fun TournamentHonorBadge(title: String, color: Long, modifier: Modifier = Modifier) {
+    if (title.isBlank()) return
+    Text(
+        "【$title】",
+        color = honorColor(color),
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = modifier
+            .border(1.dp, honorColor(color), RoundedCornerShape(10.dp))
+            .background(Color(0xAA000000), RoundedCornerShape(10.dp))
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+        maxLines = 1
+    )
+}
+
+@Composable
+private fun TournamentInfoChip(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier.border(1.dp, BorderWhite, RoundedCornerShape(7.dp)).background(BgPanel, RoundedCornerShape(7.dp)).padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(value, color = color, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(label, color = TextGray, fontSize = 9.sp, maxLines = 1)
+    }
+}
+
+@Composable
+private fun TournamentPodiumCard(
+    opponent: com.arktools.anlao.engine.GameEngine.TournamentOpponent?,
+    height: Int,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    val rank = opponent?.rank ?: 0
+    val borderColor = when (rank) {
+        1 -> GoldAccent
+        2 -> Color(0xFFC0C0C0)
+        3 -> Color(0xFFCD7F32)
+        else -> BorderWhite
+    }
+    Column(
+        modifier.height(height.dp)
+            .border(1.dp, borderColor, RoundedCornerShape(9.dp))
+            .background(BgPanel, RoundedCornerShape(9.dp))
+            .clickable(enabled = opponent != null) { onClick() }
+            .padding(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(if (rank > 0) "第${rank}名" else "虚位", color = borderColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        opponent?.let { if (it.honorTitle.isNotBlank()) TournamentHonorBadge(it.honorTitle, it.honorColor) }
+        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.BottomCenter) {
+            if (opponent != null) AssetImageBox(opponent.portrait, if (rank == 1) 98 else 82, opponent.name)
+        }
+        Text(opponent?.name ?: "待揭榜", color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(opponent?.title ?: "", color = TextGray, fontSize = 9.sp, maxLines = 1)
+    }
+}
+
+@Composable
+private fun TournamentPlayerRow(
+    tournament: com.arktools.anlao.engine.GameEngine.TournamentState,
+    player: com.arktools.anlao.data.PlayerEntity
+) {
+    Row(
+        Modifier.fillMaxWidth()
+            .border(1.dp, GoldAccent, RoundedCornerShape(8.dp))
+            .background(Color(0x221EFF00L), RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp)
+    ) {
+        Box(Modifier.size(42.dp).border(1.dp, GoldAccent, RoundedCornerShape(8.dp)).padding(3.dp), contentAlignment = Alignment.Center) {
+            AssetImageBox(player.portrait, 36, player.name)
+        }
+        Column(Modifier.weight(1f)) {
+            Text("第${tournament.rank}名 · ${player.name}", color = GoldAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            val honorTitle = player.tournamentTitle
+            if (honorTitle.isNotBlank()) TournamentHonorBadge(honorTitle, player.tournamentTitleColor, Modifier.padding(top = 2.dp, bottom = 2.dp))
+            Text("你当前所在位置", color = TextGray, fontSize = 10.sp)
+        }
+        Text("${tournament.stars}/5星", color = Color(0xFF66D18F), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun TournamentRankRow(
+    opponent: com.arktools.anlao.engine.GameEngine.TournamentOpponent,
+    canChallenge: Boolean,
+    onOpen: () -> Unit,
+    onChallenge: () -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth()
+            .border(1.dp, BorderWhite, RoundedCornerShape(8.dp))
+            .background(BgPanel, RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp)
+    ) {
+        Box(
+            Modifier.size(42.dp)
+                .border(1.dp, GoldAccent.copy(alpha = 0.75f), RoundedCornerShape(8.dp))
+                .clickable { onOpen() }
+                .padding(3.dp),
+            contentAlignment = Alignment.Center
+        ) { AssetImageBox(opponent.portrait, 36, opponent.name) }
+        Column(Modifier.weight(1f).clickable { onOpen() }) {
+            Text("第${opponent.rank}名 · ${opponent.name}", color = TextWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            if (opponent.honorTitle.isNotBlank()) TournamentHonorBadge(opponent.honorTitle, opponent.honorColor, Modifier.padding(top = 2.dp, bottom = 2.dp))
+            Text("${opponent.title} · ${opponent.stars}/5星 · 攻${opponent.atk} 防${opponent.def}", color = TextGray, fontSize = 10.sp, maxLines = 1)
+        }
+        Button(
+            onClick = onChallenge,
+            enabled = canChallenge,
+            colors = ButtonDefaults.buttonColors(containerColor = if (canChallenge) GoldAccent else Color(0xFF333333), disabledContainerColor = Color(0xFF333333)),
+            shape = RoundedCornerShape(5.dp),
+            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 4.dp)
+        ) { Text(if (canChallenge) "挑战" else "不可战", color = if (canChallenge) Color.Black else TextGray, fontSize = 11.sp) }
+    }
+}
+
+@Composable
+private fun TournamentOpponentDialog(
+    opponent: com.arktools.anlao.engine.GameEngine.TournamentOpponent,
+    canChallenge: Boolean,
+    onChallenge: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth()
+                .border(1.dp, GoldAccent, RoundedCornerShape(12.dp))
+                .background(BgPanel, RoundedCornerShape(12.dp))
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (opponent.honorTitle.isNotBlank()) TournamentHonorBadge(opponent.honorTitle, opponent.honorColor)
+                    Box(Modifier.size(width = 92.dp, height = 116.dp).border(1.dp, GoldAccent, RoundedCornerShape(9.dp)).padding(4.dp), contentAlignment = Alignment.BottomCenter) {
+                        AssetImageBox(opponent.portrait, 104, opponent.name)
+                    }
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(opponent.name, color = TextWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    if (opponent.honorTitle.isNotBlank()) TournamentHonorBadge(opponent.honorTitle, opponent.honorColor, Modifier.padding(top = 3.dp, bottom = 3.dp))
+                    Text("第${opponent.rank}名 · ${opponent.title}", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("武道星数 ${opponent.stars}/5", color = TextGray, fontSize = 11.sp)
+                }
+            }
+
+            SectionTitle("属性")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TournamentInfoChip("气血", "${opponent.hp}", HpRed, Modifier.weight(1f))
+                TournamentInfoChip("攻击", "${opponent.atk}", TextWhite, Modifier.weight(1f))
+                TournamentInfoChip("防御", "${opponent.def}", TextWhite, Modifier.weight(1f))
+                TournamentInfoChip("身法", "%.2f".format(opponent.spd), TextWhite, Modifier.weight(1f))
+            }
+
+            SectionTitle("装备")
+            opponent.gear.forEach { gear ->
+                Text("· $gear", color = RarityCol.entries.firstOrNull { gear.startsWith(it.key) }?.value ?: TextWhite, fontSize = 12.sp)
+            }
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onChallenge,
+                    enabled = canChallenge,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, disabledContainerColor = Color(0xFF333333)),
+                    shape = RoundedCornerShape(6.dp)
+                ) { Text(if (canChallenge) "挑战此人" else "暂不可挑战", color = if (canChallenge) Color.Black else TextGray, fontSize = 13.sp) }
+                Button(onClick = onDismiss, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)), shape = RoundedCornerShape(6.dp)) {
+                    Text("关闭", color = TextWhite, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
 // ==================== TAB 2: 角色 ====================
 @Composable
-private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: com.arktools.anlao.engine.GameEngine) {
+private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: com.arktools.anlao.engine.GameEngine, onTournament: () -> Unit) {
     val realm = CultivationRealm.entries.find { it.name == player.realm } ?: CultivationRealm.NONE
     val sect = MartialSect.entries.find { it.name == player.sect } ?: MartialSect.WANDERER
     val nextRealm = CultivationRealm.entries.getOrNull(realm.ordinal + 1)
@@ -1235,13 +1655,20 @@ private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: c
         // 身份
         Box(Modifier.fillMaxWidth().padding(vertical = 8.dp).border(1.dp, BorderWhite, RoundedCornerShape(6.dp)).padding(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                AssetImageBox(player.portrait, 118, player.name)
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    engine.activeTournamentTitle()?.let { TournamentHonorBadge(it.title, it.color) }
+                    AssetImageBox(player.portrait, 118, player.name)
+                }
                 Column(Modifier.weight(1f)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column {
                             Text(player.name, color = TextWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            val honor = engine.activeTournamentTitle()
+                            if (honor != null) TournamentHonorBadge(honor.title, honor.color, Modifier.padding(top = 3.dp, bottom = 3.dp))
                             Text("身份: ${if (player.gender == "female") "女侠" else "少侠"}", color = TextGray, fontSize = 11.sp)
                             Text("门派: ${sect.displayName}", color = TextGray, fontSize = 11.sp)
+                            val difficulty = GameDifficulty.entries.find { it.name == player.difficulty } ?: GameDifficulty.HARD
+                            Text("难度: ${difficulty.displayName}（${difficulty.rankName}）", color = TextGray, fontSize = 11.sp)
                             Text("境界: ${MartialRealmDisplay.fromLevel(player.lvl)}", color = GoldAccent, fontSize = 13.sp)
                         }
                         Column(horizontalAlignment = Alignment.End) {
@@ -1328,6 +1755,24 @@ private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: c
             StatBlock("死亡", "${player.deaths}")
             StatBlock("祝福等级", "${player.blessing}")
             StatBlock("探索时间", formatTime(player.playtime))
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.fillMaxWidth()
+                .border(1.dp, GoldAccent, RoundedCornerShape(8.dp))
+                .background(Color(0xEE17110D), RoundedCornerShape(8.dp))
+                .clickable { onTournament() }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            AssetImageBox("ui/icons/tournament.png", 38, "武道大会")
+            Column(Modifier.weight(1f)) {
+                Text("武道大会", color = GoldAccent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("千人模拟排行 · 每日十次挑战 · 前五百名结算奖励", color = TextGray, fontSize = 10.sp, lineHeight = 14.sp)
+            }
+            Text("进入", color = TextWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
         // 装备加成
@@ -1423,7 +1868,7 @@ private fun SettingsTab(
         SettingButton("返回标题", "回到主菜单", icon = "ui/icons/back.png") { engine.saveGame(); onReturnTitle() }
 
         Spacer(Modifier.height(20.dp))
-        Text("暗牢江湖行 v1.0", color = TextGray, fontSize = 11.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Text("暗牢江湖行 v1.0.3", color = TextGray, fontSize = 11.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
 
         if (showDeleteDialog) {
             AlertDialog(onDismissRequest = { showDeleteDialog = false }, containerColor = BgPanel,
@@ -1512,6 +1957,7 @@ private fun CombatOverlay(cs: CombatState, log: List<String>, sprite: String, eF
             Column(Modifier.fillMaxWidth().border(1.dp, BorderWhite, RoundedCornerShape(6.dp)).padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(engine.player.value.name, color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                engine.activeTournamentTitle()?.let { TournamentHonorBadge(it.title, it.color, Modifier.padding(top = 2.dp, bottom = 2.dp)) }
                 Text(MartialRealmDisplay.fromLevel(engine.player.value.lvl), color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Box(Modifier.size(width = 160.dp, height = 110.dp), contentAlignment = Alignment.Center) {
                     Box(Modifier.size(90.dp).graphicsLayer { translationX = pShake; scaleX = pScale; scaleY = pScale }, contentAlignment = Alignment.Center) { AssetImageBox(engine.player.value.portrait, 90, engine.player.value.name) }
@@ -1725,14 +2171,14 @@ private fun formatTime(seconds: Long): String {
 }
 
 private fun skillInfo(skill: String): Pair<String, String> = when (skill.trim()) {
-    "REMNANT_EDGE" -> "残刃刀法" to "每次攻击附加敌人当前气血8%的伤害"
-    "TITAN_WILL" -> "铁骨铮铮" to "每次攻击附加自身气血上限5%的伤害"
-    "DEVASTATOR" -> "破军诀" to "攻击力永久提升30%"
-    "RAMPAGER" -> "嗜战" to "每次攻击永久+5攻击力(战斗结束后重置)"
-    "BLADE_DANCE" -> "影舞步" to "每次攻击永久+0.01攻速(战斗结束后重置)"
-    "PALADIN_HEART" -> "金钟罩" to "受到的伤害减少25%"
-    "AEGIS_THORNS" -> "荆棘反甲" to "每次被攻击反弹15%伤害给敌人"
-    "BLOODTHIRST" -> "嗜血术" to "吸血率永久+5%"
-    "PRECISION" -> "心明眼亮" to "暴击率永久+8%"
+    "REMNANT_EDGE" -> "照影断脉" to "敌人伤势越重，攻击附加越高；最高不超过自身攻击80%"
+    "TITAN_WILL" -> "孤灯守魄" to "自身气血低于45%时，造成伤害提升22%"
+    "DEVASTATOR" -> "摧锋入势" to "攻击提升18%，暴击伤害提升12%"
+    "RAMPAGER" -> "炉火连环" to "本场战斗每次出手攻击+3，最多叠加36点"
+    "BLADE_DANCE" -> "掠雨身法" to "本场战斗每次出手暴击率+0.6%，最多叠加6%"
+    "PALADIN_HEART" -> "玄息护体" to "受到伤害降低18%；气血低于35%时降低28%"
+    "AEGIS_THORNS" -> "借劲回澜" to "受击后以伤害和防御反震敌人，单次有上限"
+    "BLOODTHIRST" -> "归血微澜" to "吸血提升4%，气血上限提升4%"
+    "PRECISION" -> "星痕洞察" to "暴击率提升5%，暴击伤害提升15%"
     else -> skill to ""
 }
