@@ -1651,7 +1651,6 @@ class GameEngine(private val context: Context) {
         saveGame()
         // 战斗后装备损耗
         degradeEquipmentOnBattle(!victory)
-        val cs = _combatState.value
         if (victory && cs?.battleType == "guardian") {
             _realm.value = _realm.value.copy(isExploring = false, isEventActive = true, currentEvent = "floor_clear")
             _eventPrompt.value = EventPrompt("你击败了【${cs.enemyName}】，${currentAreaName()}的出口已经打开。是否前往下一层？", listOf("前往下一层", "留在本层"))
