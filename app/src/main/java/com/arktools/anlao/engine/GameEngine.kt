@@ -1490,8 +1490,8 @@ class GameEngine(private val context: Context) {
         _dmgNumbers.value=(_dmgNumbers.value+DmgNumber(nextDamageNumberId++, if (isCrit) "-${dmg.toInt()}!" else "-${dmg.toInt()}", isCrit, "player", kind)).takeLast(10)
         soundManager.playSfx("blocked")
         _playerFlinch.value=true
-        // 每回合特质效果
-        if (p.stressVirtue == "守护") {
+        // 每回合特质效果：若伤害已致死则不触发回血
+        if (cs.playerHp > 0 && p.stressVirtue == "守护") {
             val heal = (cs.playerHpMax * 0.03f).toInt().coerceAtLeast(1)
             cs.playerHp = minOf(cs.playerHpMax, cs.playerHp + heal)
             addCombatLog("守护生效，恢复${heal}点气血。")
@@ -1700,8 +1700,8 @@ class GameEngine(private val context: Context) {
         r.currentEvent = ""
 
         val levelFactor = p.lvl.coerceAtLeast(1)
-        val expLossRate = (0.04f + levelFactor * 0.001f + oldFloor * 0.0005f).coerceIn(0.05f, 0.18f)
-        val goldLossRate = (0.03f + levelFactor * 0.0008f + oldFloor * 0.0004f).coerceIn(0.04f, 0.15f)
+        val expLossRate = (0.03f + levelFactor * 0.0007f + oldFloor * 0.00035f).coerceIn(0.035f, 0.126f)
+        val goldLossRate = (0.02f + levelFactor * 0.00056f + oldFloor * 0.00028f).coerceIn(0.028f, 0.105f)
         val expLoss = (p.exp.expCurr * expLossRate).toInt().coerceAtMost(p.exp.expCurr).coerceAtLeast(0)
         val goldLoss = (p.gold * goldLossRate).toLong().coerceAtMost(p.gold).coerceAtLeast(0L)
         p.exp.expCurr = (p.exp.expCurr - expLoss).coerceAtLeast(0)
