@@ -34,8 +34,6 @@ android {
         }
         create("release7723") {
             dimension = "channel"
-            applicationIdSuffix = ".release7723"
-            versionNameSuffix = "-7723"
             buildConfigField("Boolean", "ENABLE_TAPTAP_GATE", "false")
         }
     }

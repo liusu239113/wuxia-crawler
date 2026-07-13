@@ -4,6 +4,20 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
+    inputs:
+      variant:
+        description: Build target
+        required: true
+        default: release7723
+        type: choice
+        options:
+          - release7723
+          - normal
+          - both
+
+env:
+  BUILD_VARIANT: ${{ github.event.inputs.variant || 'release7723' }}
+  VERSION_NAME: "1.0.5"
 
 jobs:
   build:
@@ -43,27 +57,58 @@ jobs:
           printf 'storeFile=release/anlao-release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\nstoreType=pkcs12\n' \
             "$RELEASE_STORE_PASSWORD" "$RELEASE_KEY_ALIAS" "$RELEASE_KEY_PASSWORD" > keystore.properties
 
-      - name: Build Release APKs
-        run: ./gradlew assembleRelease7723Release assembleNormalRelease --no-daemon
+      - name: Build 7723 Release APK
+        if: env.BUILD_VARIANT == 'release7723' || env.BUILD_VARIANT == 'both'
+        run: ./gradlew assembleRelease7723Release --no-daemon
 
       - name: Upload 7723 Release APK
+        if: env.BUILD_VARIANT == 'release7723' || env.BUILD_VARIANT == 'both'
         uses: actions/upload-artifact@v4
         with:
           name: wuxia-crawler-7723-release
           path: app/build/outputs/apk/release7723/release/app-release7723-release.apk
 
+      - name: Build Normal Release APK
+        if: env.BUILD_VARIANT == 'normal' || env.BUILD_VARIANT == 'both'
+        run: ./gradlew assembleNormalRelease --no-daemon
+
       - name: Upload Normal Release APK
+        if: env.BUILD_VARIANT == 'normal' || env.BUILD_VARIANT == 'both'
         uses: actions/upload-artifact@v4
         with:
           name: wuxia-crawler-normal-release
           path: app/build/outputs/apk/normal/release/app-normal-release.apk
 
-      - name: Create Release
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      - name: Create 7723 Release
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.BUILD_VARIANT == 'release7723'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.5-${{ github.run_number }}
-          name: 暗牢江湖行 v1.0.5 Build ${{ github.run_number }}
+          tag_name: v${{ env.VERSION_NAME }}-7723-${{ github.run_number }}
+          name: 暗牢江湖行 v${{ env.VERSION_NAME }} 7723 Build ${{ github.run_number }}
+          files: app/build/outputs/apk/release7723/release/app-release7723-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Normal Release
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.BUILD_VARIANT == 'normal'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION_NAME }}-normal-${{ github.run_number }}
+          name: 暗牢江湖行 v${{ env.VERSION_NAME }} TapTap Build ${{ github.run_number }}
+          files: app/build/outputs/apk/normal/release/app-normal-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Combined Release
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.BUILD_VARIANT == 'both'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION_NAME }}-${{ github.run_number }}
+          name: 暗牢江湖行 v${{ env.VERSION_NAME }} Build ${{ github.run_number }}
           files: |
             app/build/outputs/apk/release7723/release/app-release7723-release.apk
             app/build/outputs/apk/normal/release/app-normal-release.apk
