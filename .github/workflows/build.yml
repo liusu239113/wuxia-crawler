@@ -43,22 +43,30 @@ jobs:
           printf 'storeFile=release/anlao-release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\nstoreType=pkcs12\n' \
             "$RELEASE_STORE_PASSWORD" "$RELEASE_KEY_ALIAS" "$RELEASE_KEY_PASSWORD" > keystore.properties
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon
+      - name: Build Release APKs
+        run: ./gradlew assembleRelease7723Release assembleNormalRelease --no-daemon
 
-      - name: Upload Release APK
+      - name: Upload 7723 Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: wuxia-crawler-release
-          path: app/build/outputs/apk/release/app-release.apk
+          name: wuxia-crawler-7723-release
+          path: app/build/outputs/apk/release7723/release/app-release7723-release.apk
+
+      - name: Upload Normal Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: wuxia-crawler-normal-release
+          path: app/build/outputs/apk/normal/release/app-normal-release.apk
 
       - name: Create Release
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.3-${{ github.run_number }}
-          name: 暗牢江湖行 v1.0.3 Build ${{ github.run_number }}
-          files: app/build/outputs/apk/release/app-release.apk
+          tag_name: v1.0.5-${{ github.run_number }}
+          name: 暗牢江湖行 v1.0.5 Build ${{ github.run_number }}
+          files: |
+            app/build/outputs/apk/release7723/release/app-release7723-release.apk
+            app/build/outputs/apk/normal/release/app-normal-release.apk
           draft: false
           prerelease: false
         env:

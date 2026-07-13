@@ -101,7 +101,8 @@ class MainActivity : ComponentActivity() {
                     privacyAccepted == false -> showPrivacyDialog = true
                     privacyAccepted == true -> {
                         initAllSdks()
-                        showTapLogin = true
+                        showTapLogin = com.arktools.anlao.BuildConfig.ENABLE_TAPTAP_GATE
+                        if (!showTapLogin) gameScreen = GAME_TITLE
                     }
                 }
             }
@@ -207,7 +208,8 @@ class MainActivity : ComponentActivity() {
                                     Log.i("MainActivity", "Privacy policy accepted")
                                     showPrivacyDialog = false
                                     initAllSdks()
-                                    showTapLogin = true
+                                    showTapLogin = com.arktools.anlao.BuildConfig.ENABLE_TAPTAP_GATE
+                                    if (!showTapLogin) gameScreen = GAME_TITLE
                                 },
                                 onDismiss = {
                                     finishAffinity()
@@ -225,8 +227,10 @@ class MainActivity : ComponentActivity() {
      */
     private fun initAllSdks() {
         try {
-            // 1. TapTap SDK
-            TapSdkInitializer.ensureInitialized(this)
+            // 1. TapTap SDK（7723包关闭 TapTap 登录和防沉迷）
+            if (com.arktools.anlao.BuildConfig.ENABLE_TAPTAP_GATE) {
+                TapSdkInitializer.ensureInitialized(this)
+            }
 
             // 2. Tosin 广告 SDK
             TosinAdInitializer.getInstance().init(application as android.app.Application)

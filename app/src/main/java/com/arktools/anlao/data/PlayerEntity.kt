@@ -44,6 +44,7 @@ data class PlayerEntity(
 
     var equipped: String = "[]",
     var inventory: String = "[]",
+    var enhanceFailStreak: Int = 0,
 
     var skills: String = "",
     var inCombat: Boolean = false,

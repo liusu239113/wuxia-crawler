@@ -22,8 +22,22 @@ android {
         applicationId = "com.arktools.anlao"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.0.4"
+        versionCode = 6
+        versionName = "1.0.5"
+    }
+
+    flavorDimensions += "channel"
+    productFlavors {
+        create("normal") {
+            dimension = "channel"
+            buildConfigField("Boolean", "ENABLE_TAPTAP_GATE", "true")
+        }
+        create("release7723") {
+            dimension = "channel"
+            applicationIdSuffix = ".release7723"
+            versionNameSuffix = "-7723"
+            buildConfigField("Boolean", "ENABLE_TAPTAP_GATE", "false")
+        }
     }
 
     signingConfigs {

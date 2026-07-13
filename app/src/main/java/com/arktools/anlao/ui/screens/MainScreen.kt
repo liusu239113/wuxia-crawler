@@ -361,6 +361,7 @@ private fun BlacksmithOverlay(engine: com.arktools.anlao.engine.GameEngine, play
                 val reforgeCost = engine.reforgeCost(item)
                 val repairCost = engine.repairCost(item)
                 val rate = engine.enhanceSuccessRate(item)
+                val enhanceRateText = if (player.enhanceFailStreak >= 2) "保底" else "${rate}%"
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Button(onClick = {
@@ -368,7 +369,7 @@ private fun BlacksmithOverlay(engine: com.arktools.anlao.engine.GameEngine, play
                             if (ok) engine.soundManager.playSfx("enhance_success")
                             feedback = if (item.lvl >= 30) "已达上限+30" else if (ok) "强化成功！" else "银两不足（需${enhanceCost}两）"
 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)), shape = RoundedCornerShape(6.dp)) {
-                        Text("强化 ${enhanceCost}两 ${rate}%", color = TextWhite, fontSize = 11.sp)
+                        Text("强化 ${enhanceCost}两 ${enhanceRateText}", color = TextWhite, fontSize = 11.sp)
                         }
                         Button(onClick = {
                             val ok = engine.reforgeEquipped(selectedSlot)

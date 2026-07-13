@@ -335,7 +335,8 @@ class GameEngine(private val context: Context) {
             "冷静" -> { p.stats.critRate += 10f; p.stats.critDmg += 20f }
             "守护" -> { /* 每回合回血在战斗逻辑里处理 */ }
         }
-        p.stats.hp = oldHp.coerceIn(1, p.stats.hpMax)
+        val minHp = if (p.inCombat || oldHp <= 0) 0 else 1
+        p.stats.hp = oldHp.coerceIn(minHp, p.stats.hpMax)
         p.stats.vamp = p.stats.vamp.coerceAtLeast(0f)
         p.stats.critRate = p.stats.critRate.coerceIn(0f, 95f)
         p.stats.critDmg = p.stats.critDmg.coerceAtLeast(25f)
@@ -1497,9 +1498,9 @@ class GameEngine(private val context: Context) {
             addCombatLog("守护生效，恢复${heal}点气血。")
             _dmgNumbers.value=(_dmgNumbers.value+DmgNumber(nextDamageNumberId++, "+${heal}", false, "player", "heal")).takeLast(10)
         }
-        if (p.stressAffliction == "自残") {
+        if (p.stressAffliction == "自残" && cs.playerHp > 0) {
             val selfDmg = (cs.playerHpMax * 0.02f).toInt().coerceAtLeast(1)
-            cs.playerHp = maxOf(1, cs.playerHp - selfDmg)
+            cs.playerHp = maxOf(0, cs.playerHp - selfDmg)
             addCombatLog("自残发作，损失${selfDmg}点气血。")
             _dmgNumbers.value=(_dmgNumbers.value+DmgNumber(nextDamageNumberId++, "-${selfDmg}", false, "player", "taken")).takeLast(10)
         }
@@ -1640,6 +1641,12 @@ class GameEngine(private val context: Context) {
             return
         }
         calculateStats()
+        if (!victory) {
+            val defeated = _player.value.copy()
+            defeated.stats.hp = 0
+            defeated.stats.hpPercent = 0f
+            _player.value = defeated
+        }
         if (victory) {
             val healed = _player.value.copy()
             val recover = (healed.stats.hpMax * 20 / 100).coerceAtLeast(1)
@@ -2933,17 +2940,19 @@ class GameEngine(private val context: Context) {
         if(p.gold<cost){addRealmLog("银两不足，无法强化装备。");soundManager.playSfx("blocked");return false}
         p.gold-=cost
         val rate = enhanceSuccessRate(item)
-        if (Random.nextInt(100) < rate) {
+        val guaranteed = p.enhanceFailStreak >= 2
+        if (guaranteed || Random.nextInt(100) < rate) {
             val enhanced=item.copy(lvl=item.lvl+1, value=item.value+(cost/2).toInt(), stats=item.stats.map{sm->sm.mapValues{it.value*1.04f}})
             equipped[idx]=enhanced
-            _player.value=p.copy(equipped=gson.toJson(equipped))
-            calculateStats(); addRealmLog("强化【${item.category}】成功！+${item.lvl+1}。")
+            _player.value=p.copy(equipped=gson.toJson(equipped), enhanceFailStreak = 0)
+            calculateStats(); addRealmLog("强化【${item.category}】成功！+${item.lvl + 1}。" + if (guaranteed) "（连续失败保底）" else "")
             soundManager.playSfx("equip_blade")
         } else {
             val degraded=item.copy(lvl=(item.lvl-1).coerceAtLeast(0), value=(item.value*0.9f).toInt(), stats=item.stats.map{sm->sm.mapValues{it.value/1.04f}})
             equipped[idx]=degraded
-            _player.value=p.copy(equipped=gson.toJson(equipped))
-            calculateStats(); addRealmLog("强化【${item.category}】失败！降至+${(item.lvl-1).coerceAtLeast(0)}。")
+            val failStreak = p.enhanceFailStreak + 1
+            _player.value=p.copy(equipped=gson.toJson(equipped), enhanceFailStreak = failStreak)
+            calculateStats(); addRealmLog("强化【${item.category}】失败！降至+${(item.lvl-1).coerceAtLeast(0)}。" + if (failStreak >= 2) "下次强化触发保底成功。" else "")
             soundManager.playSfx("blocked")
         }
         saveGame(); return true
