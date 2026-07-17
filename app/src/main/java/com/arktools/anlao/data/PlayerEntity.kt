@@ -37,6 +37,7 @@ data class PlayerEntity(
     var bonusStats: BonusStats = BonusStats(),
     var equippedStats: PlayerStats = PlayerStats(0, 0, 0, 0, 0f, 0f, 0f, 0f),
     var setBonusStats: PlayerStats = PlayerStats(0, 0, 0, 0, 0f, 0f, 0f, 0f),
+    var setBonusPercent: BonusStats = BonusStats(),
     var stats: PlayerStats = PlayerStats(),
     var tempStats: BonusStats = BonusStats(),
 
@@ -45,6 +46,9 @@ data class PlayerEntity(
     var equipped: String = "[]",
     var inventory: String = "[]",
     var enhanceFailStreak: Int = 0,
+    var enhancementCardCount: Int = 0,
+    var enhancementCardUsedDate: String = "",
+    var enhancementCardUsedToday: Int = 0,
 
     var skills: String = "",
     var inCombat: Boolean = false,
@@ -87,7 +91,8 @@ data class EquipmentItem(
     val tier: Int = 1,
     val value: Int = 0,
     val stats: List<Map<String, Float>> = emptyList(),
-    val durability: Int = 100
+    val durability: Int = 100,
+    val setName: String = ""
 )
 
 data class CombatState(

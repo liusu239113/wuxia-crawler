@@ -273,6 +273,7 @@ class GameEngine(private val context: Context) {
         val equippedItems = parseEquipped().filter { it.category.isNotBlank() }
         p.equippedStats = PlayerStats(0,0,0,0,0f,0f,0f,0f)
         p.setBonusStats = PlayerStats(0,0,0,0,0f,0f,0f,0f)
+        p.setBonusPercent = BonusStats()
         for (item in equippedItems) for (sm in item.stats) for ((k,v) in sm) {
             val durMul = if (item.durability >= 50) 1f else item.durability / 50f * 0.5f
             val dv = v * durMul
@@ -282,7 +283,7 @@ class GameEngine(private val context: Context) {
                 "vamp"->p.equippedStats.vamp+=dv; "critRate"->p.equippedStats.critRate+=dv; "critDmg"->p.equippedStats.critDmg+=dv
             }
         }
-        applySetBonuses(equippedItems, p.setBonusStats)
+        applySetBonuses(equippedItems, p.setBonusStats, p.setBonusPercent)
         // 人物自身属性 = 基础 × 门派 × 境界，然后祝福%乘以自身属性，装备最后单独加
         val ownHp = (p.baseStats.hpMax*(1f+sect.hpBonus)).toInt()
         val ownAtk = (p.baseStats.atk*(1f+sect.atkBonus)).toInt()
@@ -290,13 +291,13 @@ class GameEngine(private val context: Context) {
         val ownSpd = p.baseStats.atkSpd*(1f+sect.atkSpdBonus)
         p.stats = PlayerStats(
             hp=0,
-            hpMax=(ownHp*(1f+realm.hpBonus)*(1f+p.bonusStats.hp/100f)).toInt()+p.equippedStats.hpMax+p.setBonusStats.hpMax,
-            atk=(ownAtk*(1f+realm.atkBonus)*(1f+p.bonusStats.atk/100f)).toInt()+p.equippedStats.atk+p.setBonusStats.atk+p.tempStats.atk.toInt(),
-            def=(ownDef*(1f+realm.defBonus)*(1f+p.bonusStats.def/100f)).toInt()+p.equippedStats.def+p.setBonusStats.def,
-            atkSpd=(ownSpd*(1f+p.bonusStats.atkSpd/100f)+p.equippedStats.atkSpd/100f+p.setBonusStats.atkSpd/100f+p.tempStats.atkSpd).coerceAtMost(2.5f),
-            vamp=p.bonusStats.vamp+p.equippedStats.vamp+p.setBonusStats.vamp+sect.vampBonus,
-            critRate=p.bonusStats.critRate+p.equippedStats.critRate+p.setBonusStats.critRate+sect.critRateBonus+p.tempStats.critRate,
-            critDmg=50f+p.bonusStats.critDmg+p.equippedStats.critDmg+p.setBonusStats.critDmg
+            hpMax=(ownHp*(1f+realm.hpBonus)*(1f+(p.bonusStats.hp+p.setBonusPercent.hp)/100f)).toInt()+p.equippedStats.hpMax+p.setBonusStats.hpMax,
+            atk=(ownAtk*(1f+realm.atkBonus)*(1f+(p.bonusStats.atk+p.setBonusPercent.atk)/100f)).toInt()+p.equippedStats.atk+p.setBonusStats.atk+p.tempStats.atk.toInt(),
+            def=(ownDef*(1f+realm.defBonus)*(1f+(p.bonusStats.def+p.setBonusPercent.def)/100f)).toInt()+p.equippedStats.def+p.setBonusStats.def,
+            atkSpd=(ownSpd*(1f+(p.bonusStats.atkSpd+p.setBonusPercent.atkSpd)/100f)+p.equippedStats.atkSpd/100f+p.setBonusStats.atkSpd/100f+p.tempStats.atkSpd).coerceAtMost(2.5f),
+            vamp=p.bonusStats.vamp+p.setBonusPercent.vamp+p.equippedStats.vamp+p.setBonusStats.vamp+sect.vampBonus,
+            critRate=p.bonusStats.critRate+p.setBonusPercent.critRate+p.equippedStats.critRate+p.setBonusStats.critRate+sect.critRateBonus+p.tempStats.critRate,
+            critDmg=50f+p.bonusStats.critDmg+p.setBonusPercent.critDmg+p.equippedStats.critDmg+p.setBonusStats.critDmg
         )
         if (p.skills.contains("DEVASTATOR")) {
             p.stats.atk = (p.stats.atk * 1.18f).toInt()
@@ -360,29 +361,29 @@ class GameEngine(private val context: Context) {
         }
         return slots
     }
-    private fun applySetBonuses(equippedItems: List<EquipmentItem>, bonus: PlayerStats) {
+    private fun applySetBonuses(equippedItems: List<EquipmentItem>, bonus: PlayerStats, percent: BonusStats) {
         equippedItems.filter { it.category.isNotBlank() }.groupingBy { setFamily(it) }.eachCount().forEach { (family, count) ->
             if (count >= 2) {
                 when (family) {
-                    "玄铁" -> bonus.def += 18
-                    "游龙" -> bonus.atkSpd += 4f
-                    "夜行" -> bonus.critRate += 3f
-                    "青玉" -> bonus.hpMax += 90
-                    else -> bonus.atk += 16
+                    "玄铁" -> percent.def += 8f
+                    "游龙" -> percent.atkSpd += 4f
+                    "夜行" -> percent.critRate += 3f
+                    "青玉" -> percent.hp += 8f
+                    else -> percent.atk += 8f
                 }
             }
             if (count >= 4) {
                 when (family) {
-                    "玄铁" -> bonus.hpMax += 160
-                    "游龙" -> bonus.critDmg += 16f
-                    "夜行" -> bonus.vamp += 3f
-                    "青玉" -> bonus.def += 22
-                    else -> bonus.critRate += 4f
+                    "玄铁" -> percent.hp += 12f
+                    "游龙" -> percent.critDmg += 16f
+                    "夜行" -> percent.vamp += 3f
+                    "青玉" -> percent.def += 10f
+                    else -> percent.critRate += 4f
                 }
             }
             if (count >= 6) {
-                bonus.vamp += 4f
-                bonus.critDmg += 22f
+                percent.vamp += 4f
+                percent.critDmg += 22f
             }
         }
     }
@@ -397,28 +398,42 @@ class GameEngine(private val context: Context) {
         }
     }
 
-    private fun setFamily(item: EquipmentItem): String = when {
+    fun equipmentSetProgressDescriptions(): List<String> {
+        val counts = parseEquipped().filter { it.category.isNotBlank() }.groupingBy { setFamily(it) }.eachCount()
+        return listOf("玄铁", "游龙", "夜行", "青玉", "猛威").map { family ->
+            val count = counts[family] ?: 0
+            val state = when {
+                count >= 6 -> "6件效果已激活"
+                count >= 4 -> "4件效果已激活，距6件还差${6 - count}件"
+                count >= 2 -> "2件效果已激活，距4件还差${4 - count}件"
+                else -> "还差${2 - count}件激活"
+            }
+            "$family套装 $count/6：$state"
+        }
+    }
+
+    private fun setFamily(item: EquipmentItem): String = if (item.setName.isNotBlank()) item.setName else when {
         item.category.contains("玄铁") || item.category.contains("玄武") -> "玄铁"
         item.category.contains("游龙") || item.category.contains("龙纹") -> "游龙"
         item.category.contains("夜行") || item.category.contains("袖里") || item.category.contains("踏云") -> "夜行"
         item.category.contains("青") || item.category.contains("金丝") || item.category.contains("玉") -> "青玉"
         item.category.contains("虎") || item.category.contains("狮") || item.category.contains("开山") || item.category.contains("镇岳") -> "猛威"
-        else -> item.category.take(2)
+        else -> "通用"
     }
 
     private fun setBonusText(family: String, pieces: Int): String = when (family to pieces) {
-        "玄铁" to 2 -> "防御+18"
-        "玄铁" to 4 -> "气血+160"
+        "玄铁" to 2 -> "防御+8%"
+        "玄铁" to 4 -> "气血+20%"
         "游龙" to 2 -> "身法+4%"
         "游龙" to 4 -> "暴伤+16%"
         "夜行" to 2 -> "暴率+3%"
         "夜行" to 4 -> "吸血+3%"
-        "青玉" to 2 -> "气血+90"
-        "青玉" to 4 -> "防御+22"
-        "猛威" to 2 -> "攻击+16"
+        "青玉" to 2 -> "气血+8%"
+        "青玉" to 4 -> "防御+10%"
+        "猛威" to 2 -> "攻击+8%"
         "猛威" to 4 -> "暴率+4%"
         family to 6 -> "吸血+4% 暴伤+22%"
-        else -> if (pieces == 2) "攻击+16" else if (pieces == 4) "暴率+4%" else ""
+        else -> if (pieces == 2) "攻击+8%" else if (pieces == 4) "暴率+4%" else ""
     }
 
     fun parseInventory(): List<EquipmentItem> {
@@ -996,7 +1011,7 @@ class GameEngine(private val context: Context) {
                     p.bonusStats.def += 1f
                     _player.value = p
                     calculateStats()
-                    addRealmLog("付出${cost}两白银，老医师指点你运气护身，防御+1%。")
+                    addRealmLog("付出${cost}两白银，老医师指点你运气护身，防御提升1%（按基础防御百分比计算）。")
                     soundManager.playSfx("realm_breakthrough")
                     saveGame()
                 }
@@ -1045,7 +1060,7 @@ class GameEngine(private val context: Context) {
         val s = mapOf("hp" to 10f,"atk" to 8f,"def" to 8f,"atkSpd" to 3f,"vamp" to 0.5f,"critRate" to 1f,"critDmg" to 6f)
         val (k,v) = s.entries.random()
         when(k){"hp"->p.bonusStats.hp+=v;"atk"->p.bonusStats.atk+=v;"def"->p.bonusStats.def+=v;"atkSpd"->p.bonusStats.atkSpd+=v;"vamp"->p.bonusStats.vamp+=v;"critRate"->p.bonusStats.critRate+=v;"critDmg"->p.bonusStats.critDmg+=v}
-        addRealmLog("祝福获得${statDisplay(k)}+${v.toInt()}%！（祝福${p.blessing}重→${p.blessing+1}重）"); p.blessing++
+        addRealmLog("祝福获得${statDisplay(k)}+${formatBonus(v)}！（祝福${p.blessing}重→${p.blessing+1}重）"); p.blessing++
         _player.value = p.copy(); calculateStats(); saveGame()
     }
 
@@ -1746,20 +1761,22 @@ class GameEngine(private val context: Context) {
      */
     fun reviveByAd() {
         val p = _player.value.copy(inCombat = false)
-        p.stats.hp = p.stats.hpMax
-        p.stats.hpPercent = 100f
         _combatState.value = null
         _eventPrompt.value = null
         pendingDungeonOddityEvent = null
         _combatLog.value = emptyList()
         _player.value = p
+        calculateStats()
+        val healed = _player.value.copy()
+        healed.stats.hp = healed.stats.hpMax
+        healed.stats.hpPercent = 100f
+        _player.value = healed
         val r = _realm.value.copy()
         r.isExploring = true
         r.isPaused = false
         r.isEventActive = false
         r.currentEvent = ""
         _realm.value = r
-        calculateStats()
         addRealmLog("${p.name}通过广告满血复活，继续闯荡江湖！")
         saveGame()
     }
@@ -1884,7 +1901,7 @@ class GameEngine(private val context: Context) {
 
     fun addStress(amount: Int): String {
         val p = _player.value.copy()
-        val actual = if (p.stressVirtue == "坚毅") amount / 2 else amount
+        val actual = if (p.stressVirtue == "坚毅" && amount > 0) maxOf(1, amount / 2) else amount
         p.stress = (p.stress + actual).coerceIn(0, 200)
         _player.value = p; saveGame()
         if (actual != 0) {
@@ -2695,6 +2712,84 @@ class GameEngine(private val context: Context) {
 
     // ==================== 装备等级上限 ====================
     private val MAX_ENHANCE_LEVEL = 30
+    private val ENHANCEMENT_CARD_PRICE = 10_000L
+    private val ENHANCEMENT_CARD_DAILY_LIMIT = 5
+
+    fun enhancementCardPrice(): Long = ENHANCEMENT_CARD_PRICE
+
+    fun enhancementCardsAvailable(): Int = _player.value.enhancementCardCount
+
+    fun enhancementCardsUsedToday(): Int {
+        val p = _player.value
+        return if (p.enhancementCardUsedDate == LocalDate.now().toString()) p.enhancementCardUsedToday else 0
+    }
+
+    fun buyEnhancementCards(count: Int = 1): Boolean {
+        val actual = count.coerceIn(1, 5)
+        val p = _player.value.copy()
+        val today = LocalDate.now().toString()
+        if (p.enhancementCardUsedDate != today) {
+            p.enhancementCardUsedDate = today
+            p.enhancementCardUsedToday = 0
+        }
+        val total = ENHANCEMENT_CARD_PRICE * actual
+        if (p.gold < total) {
+            addRealmLog("银两不足！购买强化卡需要${total}两。")
+            soundManager.playSfx("blocked")
+            return false
+        }
+        p.gold -= total
+        p.enhancementCardCount += actual
+        _player.value = p
+        addRealmLog("购入强化卡×${actual}，花费${total}两；今日最多使用${ENHANCEMENT_CARD_DAILY_LIMIT}张。")
+        soundManager.playSfx("purchase_success")
+        saveGame()
+        return true
+    }
+
+    fun enhanceEquipped(idx: Int, useEnhancementCard: Boolean = false): Boolean {
+        val equipped = parseEquipped().toMutableList()
+        if (idx < 0 || idx >= equipped.size) return false
+        val p = _player.value.copy()
+        val item = equipped[idx]
+        if (item.category.isBlank()) return false
+        if (item.lvl >= MAX_ENHANCE_LEVEL) { addRealmLog("已达强化上限+${MAX_ENHANCE_LEVEL}。"); soundManager.playSfx("blocked"); return false }
+        val today = LocalDate.now().toString()
+        if (p.enhancementCardUsedDate != today) {
+            p.enhancementCardUsedDate = today
+            p.enhancementCardUsedToday = 0
+        }
+        if (useEnhancementCard) {
+            if (p.enhancementCardCount <= 0) { addRealmLog("没有可用的强化卡。"); soundManager.playSfx("blocked"); return false }
+            if (p.enhancementCardUsedToday >= ENHANCEMENT_CARD_DAILY_LIMIT) { addRealmLog("强化卡今日使用次数已达${ENHANCEMENT_CARD_DAILY_LIMIT}张上限。"); soundManager.playSfx("blocked"); return false }
+        }
+        val cost = enhanceCost(item)
+        if (p.gold < cost) { addRealmLog("银两不足，无法强化装备。"); soundManager.playSfx("blocked"); return false }
+        p.gold -= cost
+        val guaranteed = useEnhancementCard || p.enhanceFailStreak >= 2
+        if (guaranteed || Random.nextInt(100) < enhanceSuccessRate(item)) {
+            val enhanced = item.copy(lvl = item.lvl + 1, value = item.value + (cost / 2).toInt(), stats = item.stats.map { sm -> sm.mapValues { it.value * 1.04f } })
+            equipped[idx] = enhanced
+            if (useEnhancementCard) {
+                p.enhancementCardCount--
+                p.enhancementCardUsedToday++
+            }
+            _player.value = p.copy(equipped = gson.toJson(equipped), enhanceFailStreak = 0)
+            calculateStats()
+            addRealmLog("强化【${item.category}】成功！+${item.lvl + 1}。" + if (useEnhancementCard) "强化卡生效，必定成功。" else if (p.enhanceFailStreak >= 2) "连续失败保底成功。" else "")
+            soundManager.playSfx("equip_blade")
+        } else {
+            val degraded = item.copy(lvl = (item.lvl - 1).coerceAtLeast(0), value = (item.value * 0.9f).toInt(), stats = item.stats.map { sm -> sm.mapValues { it.value / 1.04f } })
+            equipped[idx] = degraded
+            val failStreak = p.enhanceFailStreak + 1
+            _player.value = p.copy(equipped = gson.toJson(equipped), enhanceFailStreak = failStreak)
+            calculateStats()
+            addRealmLog("强化【${item.category}】失败！降至+${(item.lvl - 1).coerceAtLeast(0)}。" + if (failStreak >= 2) "下次强化触发保底成功。" else "")
+            soundManager.playSfx("blocked")
+        }
+        saveGame()
+        return true
+    }
 
     fun migrateEquipmentCap() {
         val equipped = parseEquipped().toMutableList()
@@ -2773,6 +2868,7 @@ class GameEngine(private val context: Context) {
 
     private fun statKeyToKey(s:String)=when(s){"气血"->"hp";"攻击"->"atk";"防御"->"def";"身法"->"atkSpd";"吸血"->"vamp";"暴击率"->"critRate";"暴击伤害"->"critDmg";else->s}
     private fun statDisplay(k:String)=when(k){"hp"->"气血";"atk"->"攻击";"def"->"防御";"atkSpd"->"身法";"vamp"->"吸血";"critRate"->"暴率";"critDmg"->"暴伤";else->k}
+    private fun formatBonus(value: Float): String = if (value == value.toInt().toFloat()) "${value.toInt()}%" else "%.1f%%".format(value)
 
     fun confirmBreakthrough() {
         val nr=CultivationRealm.entries.find{it.displayName==_realmBreakthroughInfo.value?.second}?:return
@@ -2876,7 +2972,15 @@ class GameEngine(private val context: Context) {
             type in listOf(EquipmentType.CLOUD_BOOTS, EquipmentType.IRON_BOOTS, EquipmentType.WIND_BOOTS, EquipmentType.SHADOW_BOOTS, EquipmentType.RAIN_BOOTS, EquipmentType.MONK_SHOES) -> "鞋履"
             else -> "饰品"
         }
-        val equip=EquipmentItem(category=type.displayName,attribute=attr.name,type=equipTypeName,rarity=rarity.displayName,lvl=0,tier=tier,value=sellVal,stats=stats)
+        val family = when (type.displayName) {
+            "玄铁甲", "玄铁靴", "玄武盾" -> "玄铁"
+            "游龙鞭", "龙纹冠", "盘龙棍" -> "游龙"
+            "夜行衣", "袖里刃", "踏云靴" -> "夜行"
+            "青云袍", "青玉冠", "青玉佩", "金丝软甲" -> "青玉"
+            "虎面盾", "虎符坠", "狮首盔", "开山斧", "镇岳锤" -> "猛威"
+            else -> ""
+        }
+        val equip=EquipmentItem(category=type.displayName,attribute=attr.name,type=equipTypeName,rarity=rarity.displayName,lvl=0,tier=tier,value=sellVal,stats=stats,setName=family)
 
         val inv=parseInventory().toMutableList(); inv.add(equip); _player.value=_player.value.copy(inventory=gson.toJson(inv))
         return equip
@@ -2929,34 +3033,6 @@ class GameEngine(private val context: Context) {
         return scaleForgePrice((((item.lvl + 1) * 80L * rarityMul) * 0.7f).toLong().coerceAtLeast(60L))
     }
     fun reforgeCost(item: EquipmentItem): Long = scaleForgePrice((((item.lvl + 1) * 120L + _realm.value.floor * 45L) * 0.7f).toLong().coerceAtLeast(120L))
-
-    fun enhanceEquipped(idx:Int):Boolean {
-        val equipped=parseEquipped().toMutableList(); if(idx<0||idx>=equipped.size)return false
-        val p=_player.value.copy()
-        val item=equipped[idx]
-        if (item.category.isBlank()) return false
-        if (item.lvl >= MAX_ENHANCE_LEVEL) { addRealmLog("已达强化上限+${MAX_ENHANCE_LEVEL}。"); soundManager.playSfx("blocked"); return false }
-        val cost=enhanceCost(item)
-        if(p.gold<cost){addRealmLog("银两不足，无法强化装备。");soundManager.playSfx("blocked");return false}
-        p.gold-=cost
-        val rate = enhanceSuccessRate(item)
-        val guaranteed = p.enhanceFailStreak >= 2
-        if (guaranteed || Random.nextInt(100) < rate) {
-            val enhanced=item.copy(lvl=item.lvl+1, value=item.value+(cost/2).toInt(), stats=item.stats.map{sm->sm.mapValues{it.value*1.04f}})
-            equipped[idx]=enhanced
-            _player.value=p.copy(equipped=gson.toJson(equipped), enhanceFailStreak = 0)
-            calculateStats(); addRealmLog("强化【${item.category}】成功！+${item.lvl + 1}。" + if (guaranteed) "（连续失败保底）" else "")
-            soundManager.playSfx("equip_blade")
-        } else {
-            val degraded=item.copy(lvl=(item.lvl-1).coerceAtLeast(0), value=(item.value*0.9f).toInt(), stats=item.stats.map{sm->sm.mapValues{it.value/1.04f}})
-            equipped[idx]=degraded
-            val failStreak = p.enhanceFailStreak + 1
-            _player.value=p.copy(equipped=gson.toJson(equipped), enhanceFailStreak = failStreak)
-            calculateStats(); addRealmLog("强化【${item.category}】失败！降至+${(item.lvl-1).coerceAtLeast(0)}。" + if (failStreak >= 2) "下次强化触发保底成功。" else "")
-            soundManager.playSfx("blocked")
-        }
-        saveGame(); return true
-    }
 
     fun reforgeEquipped(idx:Int):Boolean {
         val equipped=parseEquipped().toMutableList(); if(idx<0||idx>=equipped.size)return false

@@ -202,6 +202,7 @@ fun MainScreen(viewModel: GameViewModel, onDeath: () -> Unit) {
 private fun ShopOverlay(engine: com.arktools.anlao.engine.GameEngine, player: com.arktools.anlao.data.PlayerEntity) {
     var torchQty by remember { mutableIntStateOf(1) }
     var antidoteQty by remember { mutableIntStateOf(1) }
+    var cardQty by remember { mutableIntStateOf(1) }
     var feedback by remember { mutableStateOf("") }
     val torchPrices = listOf(engine.torchUnitPrice(0, player.lvl), engine.torchUnitPrice(1, player.lvl), engine.torchUnitPrice(2, player.lvl))
     val antidotePrices = listOf(engine.antidoteUnitPrice(0, player.lvl), engine.antidoteUnitPrice(1, player.lvl), engine.antidoteUnitPrice(2, player.lvl))
@@ -233,6 +234,14 @@ private fun ShopOverlay(engine: com.arktools.anlao.engine.GameEngine, player: co
                 durations = antidoteDurations,
                 qty = antidoteQty, onQtyChange = { engine.soundManager.playSfx("quantity_tick"); antidoteQty = it }, onInteract = { engine.soundManager.playSfx("quantity_tick") },
                 onBuy = { tier -> val ok = engine.buyAntidote(tier, antidoteQty); feedback = if (ok) "购入${listOf("普通", "精良", "上乘")[tier]}解毒散×${antidoteQty}！" else "银两不足（需${antidotePrices[tier] * antidoteQty}两）" }
+            )
+            ShopItemRow(
+                iconPath = "ui/icons/strength_card.png", iconDesc = "强化卡",
+                name = "强化卡", desc = "下一次强化必定成功；每日最多使用5张；购买与强化费用另计",
+                prices = listOf(engine.enhancementCardPrice()), tierNames = listOf("强化卡"),
+                durations = listOf("每日已用${engine.enhancementCardsUsedToday()}/5张"),
+                qty = cardQty, onQtyChange = { engine.soundManager.playSfx("quantity_tick"); cardQty = it.coerceAtMost(5) }, onInteract = { engine.soundManager.playSfx("quantity_tick") },
+                onBuy = { _ -> val ok = engine.buyEnhancementCards(cardQty); feedback = if (ok) "购入强化卡×${cardQty}！" else "购买失败，请查看日志" }
             )
             TextButton(onClick = { engine.closeShop() }, modifier = Modifier.fillMaxWidth()) { Text("离开", color = TextGray) }
         }
@@ -294,6 +303,7 @@ private fun ShopItemRow(
 @Composable
 private fun BlacksmithOverlay(engine: com.arktools.anlao.engine.GameEngine, player: com.arktools.anlao.data.PlayerEntity) {
     var selectedSlot by remember { mutableIntStateOf(-1) }
+    var useEnhancementCard by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf("") }
     val equipped = engine.parseEquipped()
     val item = equipped.getOrNull(selectedSlot)?.takeIf { it.category.isNotBlank() }
@@ -357,15 +367,19 @@ private fun BlacksmithOverlay(engine: com.arktools.anlao.engine.GameEngine, play
 
             // 操作按钮
             if (item != null) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Checkbox(checked = useEnhancementCard, onCheckedChange = { useEnhancementCard = it && player.enhancementCardCount > 0 && player.enhancementCardUsedToday < 5 })
+                    Text("使用强化卡（库存${player.enhancementCardCount}，今日已用${player.enhancementCardUsedToday}/5）", color = if (player.enhancementCardCount > 0) GoldAccent else TextGray, fontSize = 10.sp)
+                }
                 val enhanceCost = engine.enhanceCost(item)
                 val reforgeCost = engine.reforgeCost(item)
                 val repairCost = engine.repairCost(item)
                 val rate = engine.enhanceSuccessRate(item)
-                val enhanceRateText = if (player.enhanceFailStreak >= 2) "保底" else "${rate}%"
+                val enhanceRateText = if (useEnhancementCard) "必定成功" else if (player.enhanceFailStreak >= 2) "保底" else "${rate}%"
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Button(onClick = {
-                            val ok = engine.enhanceEquipped(selectedSlot)
+                            val ok = engine.enhanceEquipped(selectedSlot, useEnhancementCard)
                             if (ok) engine.soundManager.playSfx("enhance_success")
                             feedback = if (item.lvl >= 30) "已达上限+30" else if (ok) "强化成功！" else "银两不足（需${enhanceCost}两）"
 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)), shape = RoundedCornerShape(6.dp)) {
@@ -908,10 +922,13 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
         }
 
         // 套装效果
-        if (activeSetBonuses.isNotEmpty()) {
-            Column(Modifier.fillMaxWidth().padding(top = 6.dp).background(BgPanel, RoundedCornerShape(6.dp)).padding(8.dp)) {
-                Text("已激活套装", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                activeSetBonuses.forEach { Text(it, color = TextGray, fontSize = 10.sp, lineHeight = 14.sp) }
+        val setProgress = remember(player.equipped) { engine.equipmentSetProgressDescriptions() }
+        Column(Modifier.fillMaxWidth().padding(top = 6.dp).background(BgPanel, RoundedCornerShape(6.dp)).padding(8.dp)) {
+            Text("套装图鉴与进度", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            setProgress.forEach { Text(it, color = TextGray, fontSize = 10.sp, lineHeight = 14.sp) }
+            if (activeSetBonuses.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                activeSetBonuses.forEach { Text("已激活：$it", color = GoldAccent, fontSize = 10.sp, lineHeight = 14.sp) }
             }
         }
 
@@ -969,6 +986,22 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
                         onUse = { qty -> engine.useAntidote(tier, qty); onFeedback("服用${tiers[tier]}解毒散×${qty}") },
                         engine = engine
                     )
+                }
+                item(key = "enhancement_card") {
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                            .border(1.dp, GoldAccent.copy(alpha = 0.7f), RoundedCornerShape(6.dp))
+                            .background(BgPanel, RoundedCornerShape(6.dp)).padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        AssetImageBox("ui/icons/strength_card.png", 36, "强化卡")
+                        Column(Modifier.weight(1f)) {
+                            Text("强化卡 ×${player.enhancementCardCount}", color = GoldAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("强化时勾选使用；下一次强化必定成功；今日已用${engine.enhancementCardsUsedToday()}/5张", color = TextGray, fontSize = 10.sp, lineHeight = 13.sp)
+                        }
+                        Text("强化时使用", color = TextGray, fontSize = 10.sp)
+                    }
                 }
             }
         } else if (filteredInv.isEmpty()) {
@@ -1718,8 +1751,11 @@ private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: c
         StatRow("暴伤", "%.1f%%".format(player.stats.critDmg), TextWhite)
 
         // 累计加成（祝福+等级累计）
-        if (player.bonusStats.hp > 0 || player.bonusStats.atk > 0 || player.bonusStats.def > 0 ||
-            player.bonusStats.atkSpd > 0 || player.bonusStats.vamp > 0 || player.bonusStats.critRate > 0 || player.bonusStats.critDmg > 0) {
+        val hasBonus = player.bonusStats.hp > 0 || player.bonusStats.atk > 0 || player.bonusStats.def > 0 ||
+            player.bonusStats.atkSpd > 0 || player.bonusStats.vamp > 0 || player.bonusStats.critRate > 0 || player.bonusStats.critDmg > 0 ||
+            player.setBonusPercent.hp > 0 || player.setBonusPercent.atk > 0 || player.setBonusPercent.def > 0 || player.setBonusPercent.atkSpd > 0 ||
+            player.setBonusPercent.vamp > 0 || player.setBonusPercent.critRate > 0 || player.setBonusPercent.critDmg > 0
+        if (hasBonus) {
             Spacer(Modifier.height(4.dp))
             SectionTitle("累计加成（${player.blessing}次祝福）")
             val bonusParts = mutableListOf<String>()
@@ -1730,6 +1766,13 @@ private fun CharacterTab(player: com.arktools.anlao.data.PlayerEntity, engine: c
             if (player.bonusStats.vamp > 0) bonusParts.add("吸血+${"%.1f".format(player.bonusStats.vamp)}%")
             if (player.bonusStats.critRate > 0) bonusParts.add("暴率+${"%.1f".format(player.bonusStats.critRate)}%")
             if (player.bonusStats.critDmg > 0) bonusParts.add("暴伤+${"%.0f".format(player.bonusStats.critDmg)}%")
+            if (player.setBonusPercent.hp > 0) bonusParts.add("套装气血+${"%.1f".format(player.setBonusPercent.hp)}%")
+            if (player.setBonusPercent.atk > 0) bonusParts.add("套装攻击+${"%.1f".format(player.setBonusPercent.atk)}%")
+            if (player.setBonusPercent.def > 0) bonusParts.add("套装防御+${"%.1f".format(player.setBonusPercent.def)}%")
+            if (player.setBonusPercent.atkSpd > 0) bonusParts.add("套装身法+${"%.1f".format(player.setBonusPercent.atkSpd)}%")
+            if (player.setBonusPercent.vamp > 0) bonusParts.add("套装吸血+${"%.1f".format(player.setBonusPercent.vamp)}%")
+            if (player.setBonusPercent.critRate > 0) bonusParts.add("套装暴率+${"%.1f".format(player.setBonusPercent.critRate)}%")
+            if (player.setBonusPercent.critDmg > 0) bonusParts.add("套装暴伤+${"%.1f".format(player.setBonusPercent.critDmg)}%")
             Text(bonusParts.joinToString("  "), color = GoldAccent, fontSize = 11.sp, lineHeight = 16.sp)
         }
         Row(Modifier.fillMaxWidth().border(1.dp, GoldAccent, RoundedCornerShape(8.dp)), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -2194,9 +2237,10 @@ private fun statDisp(k: String) = when (k) {
 }
 
 private fun formatStatValue(k: String, v: Float): String = if (k in listOf("atkSpd", "vamp", "critRate", "critDmg")) {
-    "%.2f%%".format(v)
+    val text = "%.2f".format(v).trimEnd('0').trimEnd('.')
+    "$text%"
 } else {
-    "%.2f".format(v)
+    "%.2f".format(v).trimEnd('0').trimEnd('.')
 }
 
 private fun formatTime(seconds: Long): String {
