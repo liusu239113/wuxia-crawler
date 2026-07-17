@@ -408,7 +408,7 @@ class GameEngine(private val context: Context) {
                 count >= 2 -> "2件效果已激活，距4件还差${4 - count}件"
                 else -> "还差${2 - count}件激活"
             }
-            "$family套装 $count/6：$state"
+            "${family}套装 $count/6：$state"
         }
     }
 
