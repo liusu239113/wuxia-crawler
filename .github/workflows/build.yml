@@ -17,7 +17,7 @@ on:
 
 env:
   BUILD_VARIANT: ${{ github.event.inputs.variant || 'release7723' }}
-  VERSION_NAME: "1.0.7"
+  VERSION_NAME: "1.0.8"
 
 jobs:
   build:

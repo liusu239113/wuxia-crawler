@@ -289,12 +289,17 @@ class GameEngine(private val context: Context) {
         val ownAtk = (p.baseStats.atk*(1f+sect.atkBonus)).toInt()
         val ownDef = (p.baseStats.def*(1f+sect.defBonus)).toInt()
         val ownSpd = p.baseStats.atkSpd*(1f+sect.atkSpdBonus)
+        // 固定属性先汇总，永久百分比再作用于当前总属性；升级、换装备后增益同步成长。
+        val hpBeforePercent = (ownHp*(1f+realm.hpBonus)).toInt()+p.equippedStats.hpMax+p.setBonusStats.hpMax
+        val atkBeforePercent = (ownAtk*(1f+realm.atkBonus)).toInt()+p.equippedStats.atk+p.setBonusStats.atk+p.tempStats.atk.toInt()
+        val defBeforePercent = (ownDef*(1f+realm.defBonus)).toInt()+p.equippedStats.def+p.setBonusStats.def
+        val speedBeforePercent = ownSpd+p.equippedStats.atkSpd/100f+p.setBonusStats.atkSpd/100f+p.tempStats.atkSpd
         p.stats = PlayerStats(
             hp=0,
-            hpMax=(ownHp*(1f+realm.hpBonus)*(1f+(p.bonusStats.hp+p.setBonusPercent.hp)/100f)).toInt()+p.equippedStats.hpMax+p.setBonusStats.hpMax,
-            atk=(ownAtk*(1f+realm.atkBonus)*(1f+(p.bonusStats.atk+p.setBonusPercent.atk)/100f)).toInt()+p.equippedStats.atk+p.setBonusStats.atk+p.tempStats.atk.toInt(),
-            def=(ownDef*(1f+realm.defBonus)*(1f+(p.bonusStats.def+p.setBonusPercent.def)/100f)).toInt()+p.equippedStats.def+p.setBonusStats.def,
-            atkSpd=(ownSpd*(1f+(p.bonusStats.atkSpd+p.setBonusPercent.atkSpd)/100f)+p.equippedStats.atkSpd/100f+p.setBonusStats.atkSpd/100f+p.tempStats.atkSpd).coerceAtMost(2.5f),
+            hpMax=(hpBeforePercent*(1f+(p.bonusStats.hp+p.setBonusPercent.hp)/100f)).toInt(),
+            atk=(atkBeforePercent*(1f+(p.bonusStats.atk+p.setBonusPercent.atk)/100f)).toInt(),
+            def=(defBeforePercent*(1f+(p.bonusStats.def+p.setBonusPercent.def)/100f)).toInt(),
+            atkSpd=(speedBeforePercent*(1f+(p.bonusStats.atkSpd+p.setBonusPercent.atkSpd)/100f)).coerceAtMost(2.5f),
             vamp=p.bonusStats.vamp+p.setBonusPercent.vamp+p.equippedStats.vamp+p.setBonusStats.vamp+sect.vampBonus,
             critRate=p.bonusStats.critRate+p.setBonusPercent.critRate+p.equippedStats.critRate+p.setBonusStats.critRate+sect.critRateBonus+p.tempStats.critRate,
             critDmg=50f+p.bonusStats.critDmg+p.setBonusPercent.critDmg+p.equippedStats.critDmg+p.setBonusStats.critDmg
@@ -1011,7 +1016,7 @@ class GameEngine(private val context: Context) {
                     p.bonusStats.def += 1f
                     _player.value = p
                     calculateStats()
-                    addRealmLog("付出${cost}两白银，老医师指点你运气护身，防御提升1%（按基础防御百分比计算）。")
+                    addRealmLog("付出${cost}两白银，老医师指点你运气护身，防御提升1%（按当前总防御计算，包含装备与套装固定属性）。")
                     soundManager.playSfx("realm_breakthrough")
                     saveGame()
                 }
