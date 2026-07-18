@@ -3012,18 +3012,33 @@ class GameEngine(private val context: Context) {
         _player.value=_player.value.copy(inventory=gson.toJson(inv),equipped=gson.toJson(equipped))
         soundManager.playSfx("sheath_blade"); calculateStats(); saveGame(); return true
     }
+    fun toggleInventoryItemLock(idx: Int): Boolean {
+        val inventory = parseInventory().toMutableList()
+        if (idx !in inventory.indices) return false
+        val item = inventory[idx]
+        inventory[idx] = item.copy(isLocked = !item.isLocked)
+        _player.value = _player.value.copy(inventory = gson.toJson(inventory))
+        addRealmLog("【${item.category}】已${if (item.isLocked) "解锁，可出售" else "锁定，不会被出售"}。")
+        soundManager.playSfx("wood_confirm")
+        saveGame()
+        return true
+    }
+
     fun sellItem(isEquipped:Boolean,idx:Int):Boolean {
         val p=_player.value
-        if(isEquipped){val e=parseEquipped().toMutableList();if(idx<0||idx>=e.size)return false;val item=e.removeAt(idx);p.gold+=item.value;_player.value=p.copy(equipped=gson.toJson(e))}
-        else{val i=parseInventory().toMutableList();if(idx<0||idx>=i.size)return false;val item=i.removeAt(idx);p.gold+=item.value;_player.value=p.copy(inventory=gson.toJson(i))}
+        if(isEquipped){val e=parseEquipped().toMutableList();if(idx<0||idx>=e.size)return false;val item=e[idx];if(item.isLocked){soundManager.playSfx("blocked");return false};e.removeAt(idx);p.gold+=item.value;_player.value=p.copy(equipped=gson.toJson(e))}
+        else{val i=parseInventory().toMutableList();if(idx<0||idx>=i.size)return false;val item=i[idx];if(item.isLocked){soundManager.playSfx("blocked");return false};i.removeAt(idx);p.gold+=item.value;_player.value=p.copy(inventory=gson.toJson(i))}
         soundManager.playSfx("coin_pouch"); calculateStats(); saveGame(); return true
     }
     fun sellAll(rarity:String) {
         val p=_player.value
-        if(rarity=="全部"){val inv=parseInventory().toMutableList(); if(inv.isEmpty()){soundManager.playSfx("blocked");return}
-            for(item in inv){p.gold+=item.value}; _player.value=p.copy(inventory="[]"); soundManager.playSfx("coin_pouch")}
-        else{val inv=parseInventory().toMutableList(); val toSell=inv.filter{it.rarity==rarity}; if(toSell.isEmpty()){soundManager.playSfx("blocked");return}
-            for(item in toSell){p.gold+=item.value}; inv.removeAll(toSell); _player.value=p.copy(inventory=gson.toJson(inv)); soundManager.playSfx("coin_pouch")}
+        val inv=parseInventory().toMutableList()
+        val toSell=inv.filter{!it.isLocked && (rarity=="全部" || it.rarity==rarity)}
+        if(toSell.isEmpty()){soundManager.playSfx("blocked");return}
+        for(item in toSell){p.gold+=item.value}
+        inv.removeAll(toSell)
+        _player.value=p.copy(inventory=gson.toJson(inv))
+        soundManager.playSfx("coin_pouch")
         calculateStats(); saveGame()
     }
     fun unequipAll() { val eq=parseEquipped().toMutableList(); val inv=parseInventory().toMutableList(); inv.addAll(eq); _player.value=_player.value.copy(equipped="[]",inventory=gson.toJson(inv)); calculateStats(); saveGame() }

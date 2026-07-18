@@ -92,7 +92,8 @@ data class EquipmentItem(
     val value: Int = 0,
     val stats: List<Map<String, Float>> = emptyList(),
     val durability: Int = 100,
-    val setName: String = ""
+    val setName: String = "",
+    val isLocked: Boolean = false
 )
 
 data class CombatState(

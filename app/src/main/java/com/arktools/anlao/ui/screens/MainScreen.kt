@@ -867,6 +867,7 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
     var categoryFilter by remember { mutableIntStateOf(0) }
     var torchUseQty by remember { mutableIntStateOf(1) }
     var antidoteUseQty by remember { mutableIntStateOf(1) }
+    var setPanelExpanded by remember { mutableStateOf(false) }
 
     val categories = listOf("全部", "兵器", "护甲", "盾牌", "头盔", "鞋履", "饰品", "消耗品")
     val filteredInv = remember(inv, categoryFilter) {
@@ -921,14 +922,25 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
             }
         }
 
-        // 套装效果
+        // 套装效果（默认折叠，避免遮挡下方装备）
         val setProgress = remember(player.equipped) { engine.equipmentSetProgressDescriptions() }
-        Column(Modifier.fillMaxWidth().padding(top = 6.dp).background(BgPanel, RoundedCornerShape(6.dp)).padding(8.dp)) {
-            Text("套装图鉴与进度", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            setProgress.forEach { Text(it, color = TextGray, fontSize = 10.sp, lineHeight = 14.sp) }
-            if (activeSetBonuses.isNotEmpty()) {
-                Spacer(Modifier.height(2.dp))
-                activeSetBonuses.forEach { Text("已激活：$it", color = GoldAccent, fontSize = 10.sp, lineHeight = 14.sp) }
+        Column(
+            Modifier.fillMaxWidth().padding(top = 6.dp)
+                .background(BgPanel, RoundedCornerShape(6.dp))
+                .clickable { setPanelExpanded = !setPanelExpanded }
+                .padding(8.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("套装图鉴与进度", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(if (setPanelExpanded) "收起 ▲" else "展开 ▼", color = GoldAccent, fontSize = 10.sp)
+            }
+            if (setPanelExpanded) {
+                Spacer(Modifier.height(4.dp))
+                setProgress.forEach { Text(it, color = TextGray, fontSize = 10.sp, lineHeight = 14.sp) }
+                if (activeSetBonuses.isNotEmpty()) {
+                    Spacer(Modifier.height(2.dp))
+                    activeSetBonuses.forEach { Text("已激活：$it", color = GoldAccent, fontSize = 10.sp, lineHeight = 14.sp) }
+                }
             }
         }
 
@@ -1017,6 +1029,7 @@ private fun InventoryTab(engine: com.arktools.anlao.engine.GameEngine, player: c
                     val (originalIndex, item) = entry
                     InventoryItemRow(item,
                         onEquip = { engine.equipItem(originalIndex); selected = null },
+                        onToggleLock = { engine.toggleInventoryItemLock(originalIndex) },
                         onSell = { engine.sellItem(false, originalIndex); selected = null })
                 }
             }
@@ -1232,7 +1245,12 @@ private fun EquipmentDetail(
 }
 
 @Composable
-private fun InventoryItemRow(item: com.arktools.anlao.data.EquipmentItem, onEquip: () -> Unit, onSell: () -> Unit) {
+private fun InventoryItemRow(
+    item: com.arktools.anlao.data.EquipmentItem,
+    onEquip: () -> Unit,
+    onToggleLock: () -> Unit,
+    onSell: () -> Unit
+) {
     var showDetail by remember { mutableStateOf(false) }
 
     Row(
@@ -1246,11 +1264,16 @@ private fun InventoryItemRow(item: com.arktools.anlao.data.EquipmentItem, onEqui
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.clickable { showDetail = true }) { EquipmentBadge(item, 30) }
             Column(Modifier.clickable { onEquip() }) {
-                Text("${item.rarity} ${item.category}", color = RarityCol[item.rarity] ?: TextWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("${item.rarity} ${item.category}${if (item.isLocked) "  已锁定" else ""}", color = RarityCol[item.rarity] ?: TextWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Text("${item.type} · 品阶${item.lvl} · ${item.value}两", color = TextGray, fontSize = 10.sp)
             }
         }
-        TextButton(onClick = onSell) { Text("出售", color = HpRed, fontSize = 11.sp) }
+        TextButton(onClick = onToggleLock) {
+            Text(if (item.isLocked) "解锁" else "锁定", color = if (item.isLocked) GoldAccent else TextGray, fontSize = 11.sp)
+        }
+        TextButton(onClick = onSell, enabled = !item.isLocked) {
+            Text("出售", color = if (item.isLocked) TextGray else HpRed, fontSize = 11.sp)
+        }
     }
 
     if (showDetail) EquipmentDetailDialog(item, onEquip = { showDetail = false; onEquip() }) { showDetail = false }
